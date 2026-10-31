@@ -9,6 +9,7 @@ import { fileLoaded, selectFileEdit } from './editorSlice';
 import type { FileSession } from './fileSession';
 import { languageFor } from './fileRules';
 import { filesApi, useGetFileContentQuery } from './filesApi';
+import { fileTypeFor } from './fileTypes';
 import { SaveStatus } from './SaveStatus';
 
 // Monaco is large: load it only when a file is opened (research R8).
@@ -98,6 +99,11 @@ export function EditorPane({ workspaceId, item, readOnly, sessions }: Props) {
           onChange={(text) => session.edit(text)}
         />
       </Suspense>
+      <div className="status-bar" aria-label="Editor status" role="group">
+        <span>{fileTypeFor(item.name).language}</span>
+        <span>UTF-8</span>
+        {editorReadOnly && <span className="status-readonly">Read only</span>}
+      </div>
     </div>
   );
 }

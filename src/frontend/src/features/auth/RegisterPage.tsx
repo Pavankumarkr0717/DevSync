@@ -6,17 +6,18 @@ import { codePointLength } from '../../shared/text';
 import { ErrorMessage } from '../../shared/ui/ErrorMessage';
 import { useRegisterMutation } from './authApi';
 import { selectAuthStatus } from './authSlice';
+import { passwordStrength } from './passwordStrength';
 import { DEFAULT_ROUTE } from './returnTo';
 
 export const PASSWORD_MIN = 12;
 export const PASSWORD_MAX = 128;
 export const EMAIL_TAKEN_TEXT = 'An account with this email already exists.';
 
-type Field = 'displayName' | 'email' | 'password';
+type Field = 'displayName' | 'email' | 'password' | 'confirm';
 type FieldErrors = Partial<Record<Field, string>>;
 
 /** Mirrors the server rules (spec 002 FR-001–FR-003); the server remains authoritative. */
-function validate(displayName: string, email: string, password: string): FieldErrors {
+function validate(displayName: string, email: string, password: string, confirm: string): FieldErrors {
   const errors: FieldErrors = {};
   const name = displayName.trim();
   if (!name) {
@@ -40,7 +41,29 @@ function validate(displayName: string, email: string, password: string): FieldEr
   } else if (password.toLowerCase() === trimmedEmail.toLowerCase()) {
     errors.password = 'Password must not be your email address.';
   }
+  if (!errors.password && confirm !== password) {
+    errors.confirm = 'Passwords do not match.';
+  }
   return errors;
+}
+
+const STRENGTH_LABELS = ['Too short', 'Weak', 'Fair', 'Good', 'Strong'] as const;
+
+function StrengthMeter({ password }: { password: string }) {
+  if (!password) {
+    return null;
+  }
+  const score = passwordStrength(password);
+  return (
+    <div className={`strength strength-${score}`} aria-live="polite">
+      <span className="strength-bars" aria-hidden="true">
+        {[1, 2, 3, 4].map((n) => (
+          <span key={n} className={n <= score ? 'on' : undefined} />
+        ))}
+      </span>
+      <span className="meta">Password strength: {STRENGTH_LABELS[score]}</span>
+    </div>
+  );
 }
 
 export function RegisterPage() {
@@ -49,6 +72,7 @@ export function RegisterPage() {
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [requestError, setRequestError] = useState<unknown>(null);
 
@@ -59,7 +83,7 @@ export function RegisterPage() {
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setRequestError(null);
-    const errors = validate(displayName, email, password);
+    const errors = validate(displayName, email, password, confirm);
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) {
       return;
@@ -111,6 +135,8 @@ export function RegisterPage() {
         {field('displayName', 'Name', 'text', displayName, setDisplayName, 'name')}
         {field('email', 'Email', 'email', email, setEmail, 'email')}
         {field('password', 'Password', 'password', password, setPassword, 'new-password', `${PASSWORD_MIN}–${PASSWORD_MAX} characters`)}
+        <StrengthMeter password={password} />
+        {field('confirm', 'Confirm password', 'password', confirm, setConfirm, 'new-password')}
         {requestError !== null && <ErrorMessage error={requestError} />}
         <button type="submit" disabled={isLoading}>
           {isLoading ? 'Creating account…' : 'Create account'}

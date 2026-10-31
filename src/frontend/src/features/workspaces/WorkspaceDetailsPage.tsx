@@ -10,6 +10,7 @@ import { MembersPanel } from './MembersPanel';
 import { WorkspaceNav } from './WorkspaceNav';
 import { WorkspaceNotFound } from './WorkspaceNotFound';
 import { useGetWorkspaceQuery } from './workspacesApi';
+import { RoleBadge } from '../../shared/ui/RoleBadge';
 
 export function WorkspaceDetailsPage() {
   const { workspaceId = '' } = useParams();
@@ -62,7 +63,9 @@ export function WorkspaceDetailsPage() {
         <dt>Owner</dt>
         <dd>{workspace.owner.displayName}</dd>
         <dt>Your role</dt>
-        <dd>{workspace.myRole}</dd>
+        <dd>
+          <RoleBadge role={workspace.myRole} />
+        </dd>
         <dt>Created</dt>
         <dd>{formatDate(workspace.createdAt)}</dd>
       </dl>

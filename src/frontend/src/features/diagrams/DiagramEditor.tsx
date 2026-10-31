@@ -12,6 +12,7 @@ import {
   type Connection,
   type EdgeChange,
   type NodeChange,
+  type FitViewOptions,
   type OnSelectionChangeParams,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -21,6 +22,7 @@ import type { ComponentType, Diagram, DiagramEdgeDoc, DiagramNodeDoc } from '../
 import { usePageLeave } from '../../shared/editing/drafts';
 import { toSaveOutcome } from '../../shared/editing/saveOutcome';
 import { FitIcon, GridIcon, MinusIcon, PlusIcon } from '../../shared/ui/icons';
+import { useTheme } from '../../shared/theme/useTheme';
 import { toastShown } from '../../shared/ui/uiSlice';
 import { CanvasActionsContext, type CanvasActions } from './canvasContext';
 import { ComponentNode, type ComponentFlowNode } from './ComponentNode';
@@ -49,6 +51,10 @@ import { Palette } from './Palette';
 import { PropertiesPanel, type Selection } from './PropertiesPanel';
 
 const nodeTypes = { component: ComponentNode };
+
+/** Fit leaves room for the floating palette (left) and properties (right) panels on wide screens. */
+const fitPadding = (): NonNullable<FitViewOptions['padding']> =>
+  typeof window !== 'undefined' && window.innerWidth > 900 ? { top: '32px', bottom: '32px', left: '256px', right: '340px' } : 0.15;
 const edgeTypes = { labelled: LabelledEdge };
 const GRID_KEY = 'devsync:diagram-grid';
 
@@ -115,6 +121,7 @@ function Editor({ workspaceId, diagram, readOnly: roleReadOnly, breadcrumbs }: P
   const dispatch = useAppDispatch();
   const store = useAppStore();
   const flow = useReactFlow();
+  const theme = useTheme();
   const userId = useAppSelector((s) => s.auth.user?.id ?? '');
   const editor = useAppSelector(selectDiagramEditor);
   const docNodes = useAppSelector(selectDiagramNodes);
@@ -321,7 +328,7 @@ function Editor({ workspaceId, diagram, readOnly: roleReadOnly, breadcrumbs }: P
       <div className="canvas-body" onDragOver={(e) => e.preventDefault()} onDrop={onDrop} data-testid="diagram-canvas">
         <ReactFlow<ComponentFlowNode, LabelledFlowEdge>
           aria-label="Diagram canvas"
-          colorMode="system"
+          colorMode={theme}
           nodes={flowNodes}
           edges={flowEdges}
           nodeTypes={nodeTypes}
@@ -350,7 +357,7 @@ function Editor({ workspaceId, diagram, readOnly: roleReadOnly, breadcrumbs }: P
           maxZoom={LIMITS.maxZoom}
           defaultViewport={initial.document?.viewport ?? undefined}
           fitView={!initial.document?.viewport}
-          fitViewOptions={{ padding: 0.15 }}
+          fitViewOptions={{ padding: fitPadding() }}
           proOptions={{ hideAttribution: false }}
         >
           <Background variant={BackgroundVariant.Dots} gap={LIMITS.grid} size={1.5} />
@@ -387,7 +394,7 @@ function DiagramToolbar({ grid, onToggleGrid, children }: { grid: boolean; onTog
       <button type="button" className="icon-button" aria-label="Zoom in" disabled={zoom >= LIMITS.maxZoom - 0.001} onClick={() => void flow.zoomIn()}>
         <PlusIcon />
       </button>
-      <button type="button" className="btn-ghost" onClick={() => void flow.fitView({ padding: 0.15 })}>
+      <button type="button" className="btn-ghost" onClick={() => void flow.fitView({ padding: fitPadding() })}>
         <FitIcon />
         Fit
       </button>

@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import type { AssignableRole, WorkspaceDetails } from '../../shared/api/types';
 import { Avatar } from '../../shared/ui/Avatar';
+import { ConfirmDialog } from '../../shared/ui/ConfirmDialog';
 import { ErrorMessage } from '../../shared/ui/ErrorMessage';
+import { RoleBadge } from '../../shared/ui/RoleBadge';
 import { useChangeMemberRoleMutation, useRemoveMemberMutation } from './workspacesApi';
 
 /** Members and roles; the Owner can change roles and remove members (spec 002 US4, FR-035). */
@@ -10,6 +12,8 @@ export function MembersPanel({ workspace }: { workspace: WorkspaceDetails }) {
   const [changeRole] = useChangeMemberRoleMutation();
   const [removeMember] = useRemoveMemberMutation();
   const [error, setError] = useState<unknown>(null);
+  const [removing, setRemoving] = useState<{ userId: string; name: string } | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const onRoleChange = async (userId: string, role: AssignableRole) => {
     setError(null);
@@ -20,15 +24,17 @@ export function MembersPanel({ workspace }: { workspace: WorkspaceDetails }) {
     }
   };
 
-  const onRemove = async (userId: string, name: string) => {
-    if (!window.confirm(`Remove ${name} from ${workspace.name}?`)) {
-      return;
-    }
+  const onRemove = async (userId: string) => {
     setError(null);
+    setBusy(true);
     try {
       await removeMember({ workspaceId: workspace.id, userId }).unwrap();
+      setRemoving(null);
     } catch (e) {
       setError(e);
+      setRemoving(null);
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -52,16 +58,29 @@ export function MembersPanel({ workspace }: { workspace: WorkspaceDetails }) {
                   <option value="editor">editor</option>
                   <option value="viewer">viewer</option>
                 </select>{' '}
-                <button type="button" onClick={() => void onRemove(member.userId, member.displayName)}>
+                <button type="button" onClick={() => setRemoving({ userId: member.userId, name: member.displayName })}>
                   Remove
                 </button>
               </>
             ) : (
-              <span className="role">— {member.role}</span>
+              <span className="role">
+                <span className="visually-hidden">— </span>
+                <RoleBadge role={member.role} />
+              </span>
             )}
           </li>
         ))}
       </ul>
+      {removing && (
+        <ConfirmDialog
+          title={`Remove ${removing.name}?`}
+          message={`Remove ${removing.name} from ${workspace.name}? They lose access to its files and diagrams.`}
+          confirmLabel="Remove member"
+          busy={busy}
+          onConfirm={() => void onRemove(removing.userId)}
+          onCancel={() => setRemoving(null)}
+        />
+      )}
     </section>
   );
 }

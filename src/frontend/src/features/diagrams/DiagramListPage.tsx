@@ -3,10 +3,12 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { toApiError } from '../../shared/api/problem';
 import type { DiagramSummary } from '../../shared/api/types';
 import { formatDate } from '../../shared/text';
+import { CardSkeletons } from '../../shared/ui/CardSkeletons';
 import { EmptyState } from '../../shared/ui/EmptyState';
 import { ErrorMessage } from '../../shared/ui/ErrorMessage';
 import { DiagramIcon, PencilIcon, PlusIcon, TrashIcon } from '../../shared/ui/icons';
 import { Loading } from '../../shared/ui/Loading';
+import { RoleBadge } from '../../shared/ui/RoleBadge';
 import { WorkspaceNav } from '../workspaces/WorkspaceNav';
 import { WorkspaceNotFound } from '../workspaces/WorkspaceNotFound';
 import { useGetWorkspaceQuery } from '../workspaces/workspacesApi';
@@ -55,7 +57,7 @@ export function DiagramListPage() {
       <div className="page-header">
         <div>
           <h1>Diagrams</h1>
-          <p className="meta">Your role: {role}</p>
+          <RoleBadge role={role}>Your role: {role}</RoleBadge>
         </div>
         {!creatingOpen && newButton}
       </div>
@@ -73,7 +75,7 @@ export function DiagramListPage() {
         />
       )}
 
-      {list.isLoading && <Loading />}
+      {list.isLoading && <CardSkeletons preview />}
       {list.error && <ErrorMessage error={list.error} />}
 
       {list.data && diagrams.length === 0 && !creatingOpen && (
@@ -97,14 +99,14 @@ export function DiagramListPage() {
                 </div>
               ) : (
                 <div className="card-body">
-                  <div>
+                  <div className="card-text">
                     <Link to={`/workspaces/${workspaceId}/diagrams/${d.id}`} className="card-title">
                       {d.name}
                     </Link>
                     <div className="meta">{counts(d)}</div>
                     <div className="meta">Edited {formatDate(d.updatedAt)}</div>
                   </div>
-                  <div className="nav">
+                  <div className="card-actions">
                     {canEdit && (
                       <button type="button" className="icon-button" aria-label={`Rename ${d.name}`} onClick={() => setRenamingId(d.id)}>
                         <PencilIcon size={16} />

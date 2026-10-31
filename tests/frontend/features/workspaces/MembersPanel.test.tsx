@@ -53,16 +53,21 @@ describe('MembersPanel', () => {
       workspaceInvitationsHandler([]),
       http.delete('*/api/workspaces/:id/members/:userId', () => (removed++, new HttpResponse(null, { status: 204 }))),
     );
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true);
     const { user } = renderApp({ route });
 
     await screen.findByRole('heading', { name: 'Members' });
     await user.click(within(memberRows()[1]).getByRole('button', { name: 'Remove' }));
+    const dialog = screen.getByRole('alertdialog', { name: 'Remove Ben?' });
+    expect(dialog).toHaveTextContent('Remove Ben from Interview Prep?');
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     expect(removed).toBe(0);
+
     await user.click(within(memberRows()[1]).getByRole('button', { name: 'Remove' }));
+    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Remove member' }));
 
     await waitFor(() => expect(removed).toBe(1));
-    expect(confirm).toHaveBeenLastCalledWith('Remove Ben from Interview Prep?');
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
   });
 
   it.each(['editor', 'viewer'] as const)('shows %s members and roles but no controls or emails', async (role) => {

@@ -1,5 +1,7 @@
 import Editor, { type OnMount } from '@monaco-editor/react';
 import { useEffect, useRef } from 'react';
+import { useTheme } from '../../shared/theme/useTheme';
+import { defineEditorThemes } from './editorThemes';
 import './monacoSetup';
 
 export interface CodeEditorProps {
@@ -22,6 +24,7 @@ export interface CodeEditorProps {
 export default function CodeEditor({ workspaceId, itemId, language, value, valueVersion, readOnly, onChange }: CodeEditorProps) {
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
   const appliedVersion = useRef(valueVersion);
+  const dark = useTheme() === 'dark';
 
   useEffect(() => {
     if (valueVersion !== appliedVersion.current) {
@@ -38,7 +41,18 @@ export default function CodeEditor({ workspaceId, itemId, language, value, value
         language={language}
         defaultValue={value}
         saveViewState
-        options={{ readOnly, domReadOnly: readOnly, minimap: { enabled: false }, automaticLayout: true, fixedOverflowWidgets: true }}
+        theme={dark ? 'devsync-dark' : 'devsync-light'}
+        beforeMount={defineEditorThemes}
+        options={{
+          readOnly,
+          domReadOnly: readOnly,
+          minimap: { enabled: true, renderCharacters: false },
+          automaticLayout: true,
+          fixedOverflowWidgets: true,
+          fontFamily: "'JetBrains Mono', Consolas, 'Courier New', monospace",
+          fontSize: 13,
+          fontLigatures: true,
+        }}
         onMount={(editor) => {
           editorRef.current = editor;
         }}

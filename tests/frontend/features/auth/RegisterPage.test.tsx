@@ -7,10 +7,11 @@ import { listHandler, pageOf, problem } from '../../support/handlers/workspaces'
 import { renderApp } from '../../support/renderWithProviders';
 import { server } from '../../support/server';
 
-async function submit(user: ReturnType<typeof renderApp>['user'], name: string, email: string, password: string) {
+async function submit(user: ReturnType<typeof renderApp>['user'], name: string, email: string, password: string, confirm = password) {
   if (name) await user.type(await screen.findByLabelText('Name'), name);
   if (email) await user.type(screen.getByLabelText('Email'), email);
   if (password) await user.type(screen.getByLabelText('Password'), password);
+  if (confirm) await user.type(screen.getByLabelText('Confirm password'), confirm);
   await user.click(screen.getByRole('button', { name: 'Create account' }));
 }
 
@@ -72,5 +73,27 @@ describe('RegisterPage', () => {
 
     expect(await screen.findByText(/You have no workspaces yet/)).toBeInTheDocument();
     expect(store.getState().auth.status).toBe('signedIn');
+  });
+
+  it('asks for the password twice and refuses a mismatch without sending anything', async () => {
+    let requests = 0;
+    server.use(registerHandler(() => (requests++, HttpResponse.json(authSession(), { status: 201 }))));
+    const { user } = renderApp({ route: '/register', auth: 'signedOut' });
+
+    await submit(user, 'Ana', 'ana@example.com', 'correct horse battery', 'correct horse batterz');
+
+    expect(screen.getByText('Passwords do not match.')).toBeInTheDocument();
+    expect(requests).toBe(0);
+  });
+
+  it('shows a password strength guide as the person types', async () => {
+    const { user } = renderApp({ route: '/register', auth: 'signedOut' });
+
+    const password = await screen.findByLabelText('Password');
+    await user.type(password, 'short');
+    expect(screen.getByText('Password strength: Too short')).toBeInTheDocument();
+    await user.clear(password);
+    await user.type(password, 'Correct-Horse-9-Battery');
+    expect(screen.getByText('Password strength: Strong')).toBeInTheDocument();
   });
 });

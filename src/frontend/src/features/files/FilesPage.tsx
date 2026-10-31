@@ -3,6 +3,7 @@ import { useAppDispatch, useAppSelector } from '../../app/hooks';
 import { toApiError } from '../../shared/api/problem';
 import { ErrorMessage } from '../../shared/ui/ErrorMessage';
 import { Loading } from '../../shared/ui/Loading';
+import { RoleBadge } from '../../shared/ui/RoleBadge';
 import { toastShown } from '../../shared/ui/uiSlice';
 import { WorkspaceNav } from '../workspaces/WorkspaceNav';
 import { WorkspaceNotFound } from '../workspaces/WorkspaceNotFound';
@@ -72,7 +73,7 @@ export function FilesPage() {
       <WorkspaceNav workspaceId={workspaceId} name={workspace.data.name} current="files" />
       <div className="toolbar">
         <h1>{workspace.data.name}</h1>
-        <span className="meta">Your role: {role}</span>
+        <RoleBadge role={role}>Your role: {role}</RoleBadge>
       </div>
       <div className="files-layout">
         <aside className="files-sidebar">

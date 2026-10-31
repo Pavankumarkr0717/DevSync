@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import { http } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { myInvitationsHandler } from '../support/handlers/auth';
@@ -46,5 +46,53 @@ describe('AppShell', () => {
     renderApp({ route: '/' });
 
     expect(await screen.findByRole('heading', { name: 'Your workspaces' })).toBeInTheDocument();
+  });
+
+  it('the menu button collapses the navigation to a rail and remembers it', async () => {
+    server.use(listHandler(() => Response.json(pageOf([]))));
+    window.localStorage.setItem('devsync:nav-collapsed', 'false');
+
+    const { user, container } = renderApp();
+
+    const menu = await screen.findByRole('button', { name: 'Main menu' });
+    expect(menu).toHaveAttribute('aria-expanded', 'true');
+    expect(menu).toHaveAttribute('aria-controls', 'main-navigation');
+
+    await user.click(menu);
+    expect(menu).toHaveAttribute('aria-expanded', 'false');
+    expect(container.querySelector('.shell')).toHaveClass('shell--collapsed');
+    expect(window.localStorage.getItem('devsync:nav-collapsed')).toBe('true');
+    // The rail keeps every destination reachable.
+    const nav = screen.getByRole('navigation', { name: 'Main' });
+    expect(within(nav).getByRole('link', { name: 'Workspaces' })).toBeInTheDocument();
+    expect(within(nav).getByRole('link', { name: /Invitations/ })).toBeInTheDocument();
+
+    await user.click(menu);
+    expect(menu).toHaveAttribute('aria-expanded', 'true');
+    expect(container.querySelector('.shell')).not.toHaveClass('shell--collapsed');
+  });
+
+  it('switches between the light and dark themes and remembers the choice', async () => {
+    server.use(listHandler(() => Response.json(pageOf([]))));
+
+    const { user } = renderApp();
+
+    const toggle = await screen.findByRole('button', { name: /Switch to (dark|light) theme/ });
+    // DevSync starts dark unless light was chosen earlier.
+    const start = toggle.getAttribute('aria-label') === 'Switch to light theme' ? 'dark' : 'light';
+    await user.click(toggle);
+
+    const next = start === 'dark' ? 'light' : 'dark';
+    expect(document.documentElement.dataset.theme).toBe(next);
+    expect(window.localStorage.getItem('devsync:theme')).toBe(next);
+    expect(document.getElementById('devsync-fluent-theme')?.textContent).toContain('--colorBrandBackground:');
+    expect(screen.getByRole('button', { name: `Switch to ${start} theme` })).toBeInTheDocument();
+  });
+
+  it('offers the theme switch on the sign-in page too', async () => {
+    renderApp({ route: '/login', auth: 'signedOut' });
+
+    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Switch to (dark|light) theme/ })).toBeInTheDocument();
   });
 });

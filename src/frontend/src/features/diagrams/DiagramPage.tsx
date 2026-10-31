@@ -6,6 +6,7 @@ import type { Diagram } from '../../shared/api/types';
 import { ErrorMessage } from '../../shared/ui/ErrorMessage';
 import { AlertIcon, ArrowLeftIcon, ChevronRightIcon, CloudCheckIcon, CloudOffIcon, LogoMark, PencilIcon } from '../../shared/ui/icons';
 import { Loading } from '../../shared/ui/Loading';
+import { ThemeToggle } from '../../shared/ui/ThemeToggle';
 import { toastShown } from '../../shared/ui/uiSlice';
 import { WorkspaceNotFound } from '../workspaces/WorkspaceNotFound';
 import { useGetWorkspaceQuery } from '../workspaces/workspacesApi';
@@ -156,6 +157,7 @@ function CanvasHeader({ workspaceId, diagram, canEdit, listUrl }: { workspaceId:
           {status}
         </span>
       )}
+      <ThemeToggle />
     </header>
   );
 }

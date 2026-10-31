@@ -3,11 +3,12 @@ import { Link } from 'react-router';
 import { useAppSelector } from '../../app/hooks';
 import { formatDate } from '../../shared/text';
 import { Avatar } from '../../shared/ui/Avatar';
+import { CardSkeletons } from '../../shared/ui/CardSkeletons';
 import { EmptyState } from '../../shared/ui/EmptyState';
 import { ErrorMessage } from '../../shared/ui/ErrorMessage';
 import { GridIcon, PlusIcon } from '../../shared/ui/icons';
-import { Loading } from '../../shared/ui/Loading';
 import { Pager } from '../../shared/ui/Pager';
+import { RoleBadge } from '../../shared/ui/RoleBadge';
 import { useListWorkspacesQuery } from './workspacesApi';
 
 function greeting(now = new Date()): string {
@@ -40,7 +41,7 @@ export function WorkspaceListPage() {
         </Link>
       </div>
 
-      {isLoading && <Loading />}
+      {isLoading && <CardSkeletons />}
       {error && <ErrorMessage error={error} />}
 
       {data && data.totalCount === 0 && (
@@ -56,11 +57,12 @@ export function WorkspaceListPage() {
           <ul className="workspace-list">
             {data.items.map((workspace) => (
               <li key={workspace.id}>
-                <Avatar id={workspace.id} name={workspace.name} size="lg" />
-                <Link to={`/workspaces/${workspace.id}`}>{workspace.name}</Link>
-                <div className="meta">
-                  {workspace.role} · created {formatDate(workspace.createdAt)}
+                <div className="workspace-card-top">
+                  <Avatar id={workspace.id} name={workspace.name} size="lg" />
+                  <RoleBadge role={workspace.role} />
                 </div>
+                <Link to={`/workspaces/${workspace.id}`}>{workspace.name}</Link>
+                <div className="meta">Created {formatDate(workspace.createdAt)}</div>
               </li>
             ))}
           </ul>

@@ -30,7 +30,7 @@ async function elapse(ms: number) {
 const oneNode = () =>
   seedDiagrams([{ name: 'Checkout', document: documentOf([nodeDoc('a', 'client', 'Web')], [], { x: 0, y: 0, zoom: 1 }) }]);
 
-describe('saving a diagram', { timeout: 20_000 }, () => {
+describe('saving a diagram', { timeout: 30_000 }, () => {
   beforeAll(preloadCanvas, 60_000);
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: true });

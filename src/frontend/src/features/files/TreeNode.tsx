@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
 import type { Item } from '../../shared/api/types';
+import { FolderIcon } from '../../shared/ui/icons';
+import { fileTypeFor } from './fileTypes';
 import { ItemMenu, type MenuAction } from './ItemMenu';
 
 export interface TreeContext {
@@ -20,6 +22,7 @@ export function TreeNode({ item, level, ctx }: { item: Item; level: number; ctx:
   const isFolder = item.kind === 'folder';
   const expanded = isFolder && ctx.isExpanded(item.id);
   const renaming = ctx.inputFor(item, 'rename');
+  const fileType = fileTypeFor(item.name);
 
   return (
     <li
@@ -44,8 +47,15 @@ export function TreeNode({ item, level, ctx }: { item: Item; level: number; ctx:
         onClick={() => (isFolder ? ctx.onToggle(item.id) : ctx.onOpen(item.id))}
       >
         <span aria-hidden="true" className="tree-icon">
-          {isFolder ? (expanded ? '▾' : '▸') : '·'}
+          {isFolder ? (expanded ? '▾' : '▸') : ''}
         </span>
+        {isFolder ? (
+          <FolderIcon size={16} className="tree-folder" aria-hidden="true" />
+        ) : (
+          <span aria-hidden="true" className={`file-badge pastel-${fileType.pastel}`}>
+            {fileType.badge}
+          </span>
+        )}
         {renaming ?? <span className="tree-name">{item.name}</span>}
         <ItemMenu name={item.name} actions={ctx.actionsFor(item)} />
       </div>

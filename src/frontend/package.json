@@ -18,6 +18,9 @@
     "check:bundle": "node scripts/check-bundle.mjs"
   },
   "dependencies": {
+    "@fluentui/react-theme": "9.2.2",
+    "@fontsource/inter": "5.3.0",
+    "@fontsource/jetbrains-mono": "5.3.0",
     "@monaco-editor/react": "4.7.0",
     "@reduxjs/toolkit": "2.13.0",
     "@xyflow/react": "12.12.0",
