@@ -119,6 +119,66 @@ public sealed class PrivilegeEscalationTests(PostgresFixture postgres) : IAsyncL
         await (await viewer.PutAsJsonAsync(Path(), new { name = "Late edit" })).AssertProblemAsync(404, "not_found");
     }
 
+    // ---------- Spec 003: files ----------
+
+    [Fact]
+    public async Task A_viewer_cannot_write_files_by_calling_the_api_directly()
+    {
+        var owner = await _factory.ClientForAsync(_owner);
+        var folder = await owner.NewFolderAsync(_workspaceId, null, "src");
+        var file = await owner.NewFileAsync(_workspaceId, folder, "main.ts");
+        await owner.SaveContentAsync(_workspaceId, file, 1, "original");
+        var viewer = await _factory.ClientForAsync(_viewer);
+
+        // A valid If-Match must not reveal anything: the role is refused before the revision is checked.
+        await (await viewer.SaveContentAsync(_workspaceId, file, 2, "defaced")).AssertProblemAsync(403, "forbidden");
+        await (await viewer.SaveContentAsync(_workspaceId, file, 1, "defaced")).AssertProblemAsync(403, "forbidden");
+        await (await viewer.CreateItemAsync(_workspaceId, folder, "file", "planted.ts")).AssertProblemAsync(403, "forbidden");
+
+        Assert.Equal(("original", 2L), await owner.GetContentAsync(_workspaceId, file));
+        Assert.Equal(2, (await owner.GetItemsAsync(_workspaceId)).Count);
+    }
+
+    [Fact]
+    public async Task An_editor_downgraded_to_viewer_cannot_save_on_the_next_request()
+    {
+        var editor = await _factory.ClientForAsync(_editor);
+        var file = await editor.NewFileAsync(_workspaceId, null, "a.ts");
+        Assert.Equal(HttpStatusCode.OK, (await editor.SaveContentAsync(_workspaceId, file, 1, "first")).StatusCode);
+
+        await (await _factory.ClientForAsync(_owner)).PatchAsJsonAsync(Path($"/members/{_editor}"), new { role = "viewer" });
+
+        await (await editor.SaveContentAsync(_workspaceId, file, 2, "second")).AssertProblemAsync(403, "forbidden");
+        await (await editor.CreateItemAsync(_workspaceId, null, "file", "b.ts")).AssertProblemAsync(403, "forbidden");
+        Assert.Equal(("first", 2L), await editor.GetContentAsync(_workspaceId, file));
+    }
+
+    [Fact]
+    public async Task A_removed_member_cannot_read_files()
+    {
+        var owner = await _factory.ClientForAsync(_owner);
+        var file = await owner.NewFileAsync(_workspaceId, null, "a.ts");
+        var viewer = await _factory.ClientForAsync(_viewer);
+        Assert.Equal(HttpStatusCode.OK, (await viewer.GetContentResponseAsync(_workspaceId, file)).StatusCode);
+
+        await owner.DeleteAsync(Path($"/members/{_viewer}"));
+
+        await (await viewer.GetAsync(Path("/tree"))).AssertProblemAsync(404, "not_found");
+        await (await viewer.GetContentResponseAsync(_workspaceId, file)).AssertProblemAsync(404, "not_found");
+    }
+
+    [Fact]
+    public async Task Extra_role_claims_in_a_token_do_not_let_a_viewer_save()
+    {
+        var owner = await _factory.ClientForAsync(_owner);
+        var file = await owner.NewFileAsync(_workspaceId, null, "a.ts");
+        var (_, sessionId) = await _factory.StartSessionAsync(_viewer);
+        var forged = Token(_viewer, sessionId, new Dictionary<string, object> { ["role"] = "owner", ["workspace_role"] = "editor" });
+
+        await (await _factory.ClientWithToken(forged).SaveContentAsync(_workspaceId, file, 1, "x")).AssertProblemAsync(403, "forbidden");
+        Assert.Equal((string.Empty, 1L), await owner.GetContentAsync(_workspaceId, file));
+    }
+
     private static string Token(Guid userId, Guid sessionId, Dictionary<string, object> extraClaims)
     {
         var claims = new Dictionary<string, object>(extraClaims)

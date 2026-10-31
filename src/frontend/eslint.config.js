@@ -20,4 +20,9 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    // Stateless SVG icons made by a small factory; the rule can't tell they are components.
+    files: ['src/shared/ui/icons.tsx'],
+    rules: { 'react-refresh/only-export-components': 'off' },
+  },
 ]);

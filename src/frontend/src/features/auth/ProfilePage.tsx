@@ -19,7 +19,7 @@ export function ProfilePage() {
   };
 
   return (
-    <section>
+    <section className="panel form-panel">
       <h1>Profile</h1>
       <dl>
         <dt>Name</dt>

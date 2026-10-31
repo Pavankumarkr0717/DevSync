@@ -1,6 +1,10 @@
 using DevSync.Application.Auth;
+using DevSync.Application.Diagrams;
+using DevSync.Application.Files;
 using DevSync.Application.Identity;
 using DevSync.Application.Workspaces;
+using DevSync.Infrastructure.Diagrams;
+using DevSync.Infrastructure.Files;
 using DevSync.Infrastructure.Identity;
 using DevSync.Infrastructure.Persistence;
 using DevSync.Infrastructure.Workspaces;
@@ -62,6 +66,8 @@ public static class DependencyInjection
         services.AddScoped<IWorkspaceRepository, WorkspaceRepository>();
         services.AddScoped<IWorkspaceAccess, WorkspaceAccess>();
         services.AddScoped<IInvitationRepository, InvitationRepository>();
+        services.AddScoped<IProjectFileRepository, ProjectFileRepository>();
+        services.AddScoped<IDiagramRepository, DiagramRepository>();
 
         return services;
     }

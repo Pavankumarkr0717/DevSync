@@ -50,6 +50,8 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+      # Monaco must stay in a lazy chunk and never load from a CDN (spec 003 research R8).
+      - run: npm run check:bundle
 
   containers:
     name: Container images build

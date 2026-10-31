@@ -1,4 +1,4 @@
-import { createAction, createSlice } from '@reduxjs/toolkit';
+import { createAction, createSlice, type PayloadAction } from '@reduxjs/toolkit';
 
 export const FORBIDDEN_TEXT = "You don't have permission to do that.";
 
@@ -13,6 +13,9 @@ const uiSlice = createSlice({
   name: 'ui',
   initialState: { toast: null } as UiState,
   reducers: {
+    toastShown(state, action: PayloadAction<string>) {
+      state.toast = action.payload;
+    },
     toastDismissed(state) {
       state.toast = null;
     },
@@ -24,6 +27,6 @@ const uiSlice = createSlice({
   },
 });
 
-export const { toastDismissed } = uiSlice.actions;
+export const { toastShown, toastDismissed } = uiSlice.actions;
 export const uiReducer = uiSlice.reducer;
 export const selectToast = (state: { ui: UiState }) => state.ui.toast;

@@ -43,7 +43,7 @@ export function InvitationsPanel({ workspaceId }: { workspaceId: string }) {
   };
 
   return (
-    <section aria-labelledby="invitations-heading">
+    <section aria-labelledby="invitations-heading" className="panel">
       <h2 id="invitations-heading">Invitations</h2>
       <form onSubmit={onSubmit} noValidate aria-label="Invite a member" className="inline-form">
         <div className="field">

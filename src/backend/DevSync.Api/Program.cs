@@ -77,6 +77,8 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check 
 app.MapAuthEndpoints();
 app.MapWorkspaceEndpoints();
 app.MapInvitationEndpoints();
+app.MapFileEndpoints();
+app.MapDiagramEndpoints();
 
 await app.RunAsync();
 

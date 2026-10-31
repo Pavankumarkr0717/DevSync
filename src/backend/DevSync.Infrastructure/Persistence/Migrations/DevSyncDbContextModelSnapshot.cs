@@ -22,6 +22,204 @@ namespace DevSync.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("DevSync.Domain.Diagrams.Diagram", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("Document")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("document");
+
+                    b.Property<int>("EdgeCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("edge_count");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("NodeCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("node_count");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("normalized_name");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
+
+                    b.Property<int>("SchemaVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("schema_version");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by_user_id");
+
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("workspace_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_diagrams");
+
+                    b.HasIndex("CreatedByUserId")
+                        .HasDatabaseName("ix_diagrams_created_by_user_id");
+
+                    b.HasIndex("UpdatedByUserId")
+                        .HasDatabaseName("ix_diagrams_updated_by_user_id");
+
+                    b.HasIndex("WorkspaceId", "NormalizedName")
+                        .IsUnique()
+                        .HasDatabaseName("ux_diagrams_workspace_name");
+
+                    b.ToTable("diagrams", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_diagrams_document", "jsonb_typeof(document) = 'object'");
+
+                            t.HasCheckConstraint("ck_diagrams_edge_count", "edge_count BETWEEN 0 AND 1000");
+
+                            t.HasCheckConstraint("ck_diagrams_name", "char_length(btrim(name)) BETWEEN 1 AND 100");
+
+                            t.HasCheckConstraint("ck_diagrams_node_count", "node_count BETWEEN 0 AND 500");
+
+                            t.HasCheckConstraint("ck_diagrams_revision", "revision >= 1");
+
+                            t.HasCheckConstraint("ck_diagrams_schema_version", "schema_version >= 1");
+                        });
+                });
+
+            modelBuilder.Entity("DevSync.Domain.Files.FileContent", b =>
+                {
+                    b.Property<Guid>("ItemId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("item_id");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("")
+                        .HasColumnName("content");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
+
+                    b.Property<int>("SizeBytes")
+                        .HasColumnType("integer")
+                        .HasColumnName("size_bytes");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by_user_id");
+
+                    b.HasKey("ItemId")
+                        .HasName("pk_file_contents");
+
+                    b.HasIndex("UpdatedByUserId")
+                        .HasDatabaseName("ix_file_contents_updated_by_user_id");
+
+                    b.ToTable("file_contents", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_file_contents_revision", "revision >= 1");
+
+                            t.HasCheckConstraint("ck_file_contents_size", "size_bytes BETWEEN 0 AND 1048576 AND size_bytes = octet_length(content)");
+                        });
+                });
+
+            modelBuilder.Entity("DevSync.Domain.Files.WorkspaceItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("normalized_name");
+
+                    b.Property<Guid?>("ParentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("parent_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("workspace_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_workspace_items");
+
+                    b.HasIndex("CreatedByUserId")
+                        .HasDatabaseName("ix_workspace_items_created_by_user_id");
+
+                    b.HasIndex("ParentId")
+                        .HasDatabaseName("ix_workspace_items_parent_id");
+
+                    b.HasIndex("WorkspaceId", "ParentId", "NormalizedName")
+                        .IsUnique()
+                        .HasDatabaseName("ux_workspace_items_sibling_name");
+
+                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("WorkspaceId", "ParentId", "NormalizedName"), false);
+
+                    b.ToTable("workspace_items", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_workspace_items_kind", "kind IN ('folder','file')");
+
+                            t.HasCheckConstraint("ck_workspace_items_name_length", "char_length(name) BETWEEN 1 AND 255");
+                        });
+                });
+
             modelBuilder.Entity("DevSync.Domain.Identity.RefreshToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -369,6 +567,66 @@ namespace DevSync.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ux_users_normalized_user_name");
 
                     b.ToTable("users", (string)null);
+                });
+
+            modelBuilder.Entity("DevSync.Domain.Diagrams.Diagram", b =>
+                {
+                    b.HasOne("DevSync.Infrastructure.Identity.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_diagrams_created_by_user_id_users");
+
+                    b.HasOne("DevSync.Infrastructure.Identity.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_diagrams_updated_by_user_id_users");
+
+                    b.HasOne("DevSync.Domain.Workspaces.Workspace", null)
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_diagrams_workspace_id_workspaces");
+                });
+
+            modelBuilder.Entity("DevSync.Domain.Files.FileContent", b =>
+                {
+                    b.HasOne("DevSync.Domain.Files.WorkspaceItem", null)
+                        .WithOne()
+                        .HasForeignKey("DevSync.Domain.Files.FileContent", "ItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_file_contents_item_id_workspace_items");
+
+                    b.HasOne("DevSync.Infrastructure.Identity.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_file_contents_updated_by_user_id_users");
+                });
+
+            modelBuilder.Entity("DevSync.Domain.Files.WorkspaceItem", b =>
+                {
+                    b.HasOne("DevSync.Infrastructure.Identity.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_workspace_items_created_by_user_id_users");
+
+                    b.HasOne("DevSync.Domain.Files.WorkspaceItem", null)
+                        .WithMany()
+                        .HasForeignKey("ParentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("fk_workspace_items_parent_id_workspace_items");
+
+                    b.HasOne("DevSync.Domain.Workspaces.Workspace", null)
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_workspace_items_workspace_id_workspaces");
                 });
 
             modelBuilder.Entity("DevSync.Domain.Identity.RefreshToken", b =>

@@ -1,3 +1,4 @@
+using DevSync.Domain.Files;
 using DevSync.Domain.Identity;
 using DevSync.Domain.Workspaces;
 
@@ -59,6 +60,20 @@ public static class EnumNames
         "declined" => InvitationStatus.Declined,
         "revoked" => InvitationStatus.Revoked,
         "expired" => InvitationStatus.Expired,
+        _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
+    };
+
+    public static string ToDb(ItemKind kind) => kind switch
+    {
+        ItemKind.Folder => "folder",
+        ItemKind.File => "file",
+        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
+    };
+
+    public static ItemKind ItemKindFromDb(string value) => value switch
+    {
+        "folder" => ItemKind.Folder,
+        "file" => ItemKind.File,
         _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
     };
 }

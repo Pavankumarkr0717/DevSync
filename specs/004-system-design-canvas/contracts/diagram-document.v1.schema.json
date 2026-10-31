@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devsync.local/schemas/diagram-document.v1.json",
+  "title": "DevSync diagram document, version 1",
+  "description": "Spec 004 FR-022, research R3. Documentation and contract-test fixture. The server's DiagramValidator is authoritative and also enforces rules JSON Schema cannot express: unique ids, edge references, no duplicate (source,target) pairs, metadata keys unique ignoring case, code-point lengths, control characters.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "nodes", "edges", "viewport"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "nodes": { "type": "array", "maxItems": 500, "items": { "$ref": "#/$defs/node" } },
+    "edges": { "type": "array", "maxItems": 1000, "items": { "$ref": "#/$defs/edge" } },
+    "viewport": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["x", "y", "zoom"],
+          "properties": {
+            "x": { "type": "number", "minimum": -10000000, "maximum": 10000000 },
+            "y": { "type": "number", "minimum": -10000000, "maximum": 10000000 },
+            "zoom": { "type": "number", "minimum": 0.1, "maximum": 4 }
+          }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "title", "description", "metadata", "position", "size"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "type": {
+          "enum": ["client", "api_gateway", "microservice", "database", "cache", "message_queue", "load_balancer", "external_service"]
+        },
+        "title": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "description": { "type": "string", "maxLength": 2000 },
+        "metadata": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["key", "value"],
+            "properties": {
+              "key": { "type": "string", "minLength": 1, "maxLength": 50 },
+              "value": { "type": "string", "maxLength": 500 }
+            }
+          }
+        },
+        "position": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["x", "y"],
+          "properties": {
+            "x": { "type": "number", "minimum": -100000, "maximum": 100000 },
+            "y": { "type": "number", "minimum": -100000, "maximum": 100000 }
+          }
+        },
+        "size": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["width", "height"],
+          "properties": {
+            "width": { "type": "number", "minimum": 40, "maximum": 2000 },
+            "height": { "type": "number", "minimum": 40, "maximum": 2000 }
+          }
+        }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "source", "target", "label"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "source": { "$ref": "#/$defs/id" },
+        "target": { "$ref": "#/$defs/id" },
+        "label": { "type": "string", "maxLength": 200 }
+      }
+    }
+  }
+}

@@ -40,7 +40,7 @@ export function CreateWorkspacePage() {
   };
 
   return (
-    <section>
+    <section className="panel form-panel">
       <h1>New workspace</h1>
       <form onSubmit={onSubmit} noValidate>
         <div className="field">

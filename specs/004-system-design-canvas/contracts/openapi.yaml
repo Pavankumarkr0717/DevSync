@@ -1,0 +1,235 @@
+openapi: 3.1.0
+info:
+  title: DevSync API — System Design Canvas
+  version: 0.4.0
+  description: >
+    Contract for feature 004. Additive to the 002 and 003 contracts: nothing existing changes.
+    Every path is guarded by the 002 RequireWorkspace filter: anonymous → 401; malformed workspace id,
+    missing workspace or non-member → 404 not_found; member whose role lacks the operation → 403 forbidden
+    (role read per request). Diagrams are addressed by id within the route's workspace.
+    Every response carries X-Correlation-ID; errors are RFC 9457 Problem Details.
+servers:
+  - url: /
+
+security:
+  - bearer: []
+
+paths:
+  /api/workspaces/{workspaceId}/diagrams:
+    get:
+      summary: The workspace's diagrams (no documents), sorted by name ignoring case
+      description: 'Operation: Read (Owner, Editor, Viewer).'
+      parameters: [ { $ref: '#/components/parameters/WorkspaceId' } ]
+      responses:
+        '200':
+          description: Diagram list
+          content: { application/json: { schema: { type: array, maxItems: 50, items: { $ref: '#/components/schemas/DiagramSummary' } } } }
+        '401': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      summary: Create an empty diagram
+      description: 'Operation: EditDiagrams (Owner, Editor). Starts at revision 1 with the empty v1 document.'
+      parameters: [ { $ref: '#/components/parameters/WorkspaceId' } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/DiagramNameRequest' } } }
+      responses:
+        '201':
+          description: Created. Location is /api/workspaces/{workspaceId}/diagrams/{id}.
+          content: { application/json: { schema: { $ref: '#/components/schemas/DiagramSummary' } } }
+        '400': { $ref: '#/components/responses/Problem', description: 'validation_failed (name) | malformed_request' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem', description: 'diagram_name_taken | too_many_diagrams' }
+
+  /api/workspaces/{workspaceId}/diagrams/{diagramId}:
+    get:
+      summary: A diagram with its document, upgraded to the current schema version
+      description: >
+        Operation: Read. If the stored document is a newer or unreadable version, the response is
+        200 with document = null and unsupportedSchemaVersion set; it is never upgraded or changed.
+      parameters: [ { $ref: '#/components/parameters/WorkspaceId' }, { $ref: '#/components/parameters/DiagramId' } ]
+      responses:
+        '200':
+          description: Diagram
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+            Cache-Control: { schema: { type: string, const: no-store } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/Diagram' } } }
+        '404': { $ref: '#/components/responses/Problem', description: 'not_found (workspace) | diagram_not_found' }
+    delete:
+      summary: Permanently delete a diagram
+      description: 'Operation: DeleteDiagrams (Owner only).'
+      parameters: [ { $ref: '#/components/parameters/WorkspaceId' }, { $ref: '#/components/parameters/DiagramId' } ]
+      responses:
+        '204': { description: Deleted }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem', description: diagram_not_found }
+
+  /api/workspaces/{workspaceId}/diagrams/{diagramId}/rename:
+    post:
+      summary: Rename a diagram (revision unchanged)
+      description: 'Operation: EditDiagrams (Owner, Editor). Changing only letter case is allowed.'
+      parameters: [ { $ref: '#/components/parameters/WorkspaceId' }, { $ref: '#/components/parameters/DiagramId' } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/DiagramNameRequest' } } }
+      responses:
+        '200':
+          description: Renamed
+          content: { application/json: { schema: { $ref: '#/components/schemas/DiagramSummary' } } }
+        '400': { $ref: '#/components/responses/Problem', description: validation_failed }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem', description: diagram_not_found }
+        '409': { $ref: '#/components/responses/Problem', description: diagram_name_taken }
+
+  /api/workspaces/{workspaceId}/diagrams/{diagramId}/document:
+    put:
+      summary: Replace the diagram's document if it is still at the stated revision
+      description: >
+        Operation: EditDiagrams (Owner, Editor). Body is the complete document
+        (contracts/diagram-document.v1.schema.json), at most 1 MiB. The server validates the whole
+        document before storing anything (research R5) and stores its canonical form.
+      parameters:
+        - { $ref: '#/components/parameters/WorkspaceId' }
+        - { $ref: '#/components/parameters/DiagramId' }
+        - name: If-Match
+          in: header
+          required: true
+          description: The revision the document is based on, as a quoted ETag, e.g. "7".
+          schema: { type: string, pattern: '^"[1-9][0-9]*"$' }
+        - name: replaceUnsupported
+          in: query
+          required: false
+          description: Only when the stored document is an unsupported version — the person chose "Start over".
+          schema: { type: boolean, default: false }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: 'diagram-document.v1.schema.json' } } }
+      responses:
+        '200':
+          description: Saved
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+          content: { application/json: { schema: { $ref: '#/components/schemas/SaveResult' } } }
+        '400':
+          description: 'invalid_diagram (with problems) | unsupported_schema_version | malformed_request (If-Match)'
+          content: { application/problem+json: { schema: { $ref: '#/components/schemas/InvalidDiagramProblem' } } }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem', description: diagram_not_found (includes deleted since opened) }
+        '409': { $ref: '#/components/responses/Problem', description: stored_version_unsupported (stored document is newer; send replaceUnsupported=true to start over) }
+        '412':
+          description: revision_conflict — the diagram changed since the stated revision; nothing was saved
+          content: { application/problem+json: { schema: { $ref: '#/components/schemas/ConflictProblem' } } }
+        '413': { $ref: '#/components/responses/Problem', description: content_too_large }
+        '415': { $ref: '#/components/responses/Problem', description: unsupported_media_type (must be application/json) }
+        '428': { $ref: '#/components/responses/Problem', description: revision_required }
+
+components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer, bearerFormat: JWT }
+
+  parameters:
+    WorkspaceId: { name: workspaceId, in: path, required: true, schema: { type: string } }
+    DiagramId:
+      name: diagramId
+      in: path
+      required: true
+      description: Malformed ids, other workspaces' diagram ids and missing diagrams → 404 diagram_not_found.
+      schema: { type: string }
+
+  headers:
+    ETag: { description: 'The diagram revision as a strong ETag, e.g. "7".', schema: { type: string } }
+
+  schemas:
+    DiagramNameRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, description: 'Trimmed; 1–100 characters; no control characters; unique in the workspace ignoring case.' }
+
+    DiagramSummary:
+      type: object
+      required: [id, name, revision, nodeCount, edgeCount, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        revision: { type: integer, minimum: 1 }
+        nodeCount: { type: integer, minimum: 0, maximum: 500 }
+        edgeCount: { type: integer, minimum: 0, maximum: 1000 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    Diagram:
+      allOf:
+        - { $ref: '#/components/schemas/DiagramSummary' }
+        - type: object
+          required: [document, unsupportedSchemaVersion]
+          properties:
+            document:
+              oneOf:
+                - { $ref: 'diagram-document.v1.schema.json' }
+                - { type: 'null' }
+            unsupportedSchemaVersion:
+              type: [integer, 'null']
+              description: Set (and document null) when the stored document is newer than this release, or unreadable (0).
+
+    SaveResult:
+      type: object
+      required: [revision, nodeCount, edgeCount, updatedAt]
+      properties:
+        revision: { type: integer, minimum: 2 }
+        nodeCount: { type: integer }
+        edgeCount: { type: integer }
+        updatedAt: { type: string, format: date-time }
+
+    Problem:
+      type: object
+      required: [title, status, code, correlationId]
+      properties:
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        code:
+          type: string
+          description: All 002/003 codes, plus the 004 codes below.
+          enum:
+            - diagram_not_found           # 404
+            - diagram_name_taken          # 409
+            - too_many_diagrams           # 409
+            - invalid_diagram             # 400 (with problems)
+            - unsupported_schema_version  # 400
+            - stored_version_unsupported  # 409
+            # reused from 003: revision_conflict 412, revision_required 428, content_too_large 413, unsupported_media_type 415
+        correlationId: { type: string }
+
+    DiagramProblemItem:
+      type: object
+      required: [code, path, message]
+      properties:
+        code:
+          type: string
+          enum: [malformed, too_many_nodes, too_many_edges, invalid_id, duplicate_node_id, duplicate_edge_id,
+                 unknown_node_type, unknown_node_reference, self_connection, duplicate_edge, text_required,
+                 text_too_long, invalid_text, too_many_metadata, duplicate_metadata_key, out_of_range]
+        path: { type: string, examples: ['edges[3].target', 'nodes[0].metadata[2].key', ''] }
+        message: { type: string, examples: ['Edge "e7" refers to unknown node "n12".'] }
+
+    InvalidDiagramProblem:
+      allOf:
+        - { $ref: '#/components/schemas/Problem' }
+        - type: object
+          properties:
+            problems: { type: array, maxItems: 50, items: { $ref: '#/components/schemas/DiagramProblemItem' } }
+
+    ConflictProblem:
+      allOf:
+        - { $ref: '#/components/schemas/Problem' }
+        - type: object
+          required: [currentRevision]
+          properties:
+            currentRevision: { type: integer, minimum: 1 }
+
+  responses:
+    Problem:
+      description: Problem Details
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }

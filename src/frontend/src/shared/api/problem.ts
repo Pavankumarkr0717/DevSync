@@ -5,6 +5,8 @@ export interface ApiError {
   /** HTTP status, or 0 when the server could not be reached. */
   status: number;
   title: string;
+  /** A more specific message, when the server gives one (e.g. which name rule was broken). */
+  detail?: string;
   code?: string;
   correlationId?: string;
   fieldErrors: Record<string, string[]>;
@@ -24,6 +26,7 @@ export function toApiError(error: unknown): ApiError {
         return {
           status,
           title: data.title,
+          detail: data.detail,
           code: data.code,
           correlationId: data.correlationId,
           fieldErrors: data.errors ?? {},

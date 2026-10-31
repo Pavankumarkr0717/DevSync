@@ -1,3 +1,5 @@
+using DevSync.Domain.Diagrams;
+using DevSync.Domain.Files;
 using DevSync.Domain.Identity;
 using DevSync.Domain.Workspaces;
 using DevSync.Infrastructure.Identity;
@@ -22,6 +24,12 @@ public sealed class DevSyncDbContext(DbContextOptions<DevSyncDbContext> options)
     public DbSet<WorkspaceMembership> WorkspaceMemberships => Set<WorkspaceMembership>();
 
     public DbSet<Invitation> WorkspaceInvitations => Set<Invitation>();
+
+    public DbSet<WorkspaceItem> WorkspaceItems => Set<WorkspaceItem>();
+
+    public DbSet<FileContent> FileContents => Set<FileContent>();
+
+    public DbSet<Diagram> Diagrams => Set<Diagram>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

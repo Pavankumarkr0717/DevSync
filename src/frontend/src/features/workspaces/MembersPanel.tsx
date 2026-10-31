@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { AssignableRole, WorkspaceDetails } from '../../shared/api/types';
+import { Avatar } from '../../shared/ui/Avatar';
 import { ErrorMessage } from '../../shared/ui/ErrorMessage';
 import { useChangeMemberRoleMutation, useRemoveMemberMutation } from './workspacesApi';
 
@@ -32,12 +33,13 @@ export function MembersPanel({ workspace }: { workspace: WorkspaceDetails }) {
   };
 
   return (
-    <section aria-labelledby="members-heading">
+    <section aria-labelledby="members-heading" className="panel">
       <h2 id="members-heading">Members</h2>
       {error !== null && <ErrorMessage error={error} />}
       <ul aria-label="Members" className="member-list">
         {workspace.members.map((member) => (
           <li key={member.userId}>
+            <Avatar id={member.userId} name={member.displayName} size="sm" />
             <span>{member.displayName}</span>
             {member.email && <span className="meta"> · {member.email}</span>}{' '}
             {isOwner && member.role !== 'owner' ? (

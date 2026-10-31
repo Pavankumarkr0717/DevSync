@@ -7,9 +7,9 @@ import { Loading } from '../../shared/ui/Loading';
 import { EditWorkspaceForm } from './EditWorkspaceForm';
 import { InvitationsPanel } from './InvitationsPanel';
 import { MembersPanel } from './MembersPanel';
+import { WorkspaceNav } from './WorkspaceNav';
+import { WorkspaceNotFound } from './WorkspaceNotFound';
 import { useGetWorkspaceQuery } from './workspacesApi';
-
-export const NOT_FOUND_TEXT = 'Workspace not found';
 
 export function WorkspaceDetailsPage() {
   const { workspaceId = '' } = useParams();
@@ -21,16 +21,8 @@ export function WorkspaceDetailsPage() {
   }
 
   if (error) {
-    // Missing and not-a-member look the same, by design.
     if (toApiError(error).status === 404) {
-      return (
-        <section>
-          <h1>{NOT_FOUND_TEXT}</h1>
-          <p>
-            It may not exist, or you may not be a member. <Link to="/workspaces">Back to your workspaces</Link>
-          </p>
-        </section>
-      );
+      return <WorkspaceNotFound />;
     }
     return <ErrorMessage error={error} />;
   }
@@ -43,8 +35,13 @@ export function WorkspaceDetailsPage() {
 
   return (
     <section>
-      <p>
+      <WorkspaceNav workspaceId={workspace.id} name={workspace.name} current="overview" />
+      <p className="toolbar">
         <Link to="/workspaces">← Your workspaces</Link>
+        <span className="nav">
+          <Link to={`/workspaces/${workspace.id}/files`}>Open files</Link>
+          <Link to={`/workspaces/${workspace.id}/diagrams`}>Open diagrams</Link>
+        </span>
       </p>
       {editing && canEdit ? (
         <EditWorkspaceForm workspace={workspace} onDone={() => setEditing(false)} />
@@ -61,7 +58,7 @@ export function WorkspaceDetailsPage() {
           <p>{workspace.description ?? <em>No description</em>}</p>
         </>
       )}
-      <dl>
+      <dl className="panel">
         <dt>Owner</dt>
         <dd>{workspace.owner.displayName}</dd>
         <dt>Your role</dt>

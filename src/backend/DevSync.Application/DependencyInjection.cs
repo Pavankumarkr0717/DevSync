@@ -1,4 +1,6 @@
 using DevSync.Application.Auth;
+using DevSync.Application.Diagrams;
+using DevSync.Application.Files;
 using DevSync.Application.Workspaces;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -28,6 +30,22 @@ public static class DependencyInjection
         services.AddScoped<ListMyInvitationsHandler>();
         services.AddScoped<AcceptInvitationHandler>();
         services.AddScoped<DeclineInvitationHandler>();
+
+        services.AddScoped<GetTreeHandler>();
+        services.AddScoped<CreateItemHandler>();
+        services.AddScoped<GetFileContentHandler>();
+        services.AddScoped<SaveFileContentHandler>();
+        services.AddScoped<RenameItemHandler>();
+        services.AddScoped<MoveItemHandler>();
+        services.AddScoped<DeleteItemHandler>();
+
+        services.AddSingleton(DevSync.Domain.Diagrams.DiagramDocumentUpgrader.Production);
+        services.AddScoped<ListDiagramsHandler>();
+        services.AddScoped<CreateDiagramHandler>();
+        services.AddScoped<GetDiagramHandler>();
+        services.AddScoped<RenameDiagramHandler>();
+        services.AddScoped<SaveDiagramDocumentHandler>();
+        services.AddScoped<DeleteDiagramHandler>();
         return services;
     }
 }

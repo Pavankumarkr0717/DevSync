@@ -1,8 +1,10 @@
 using DevSync.Application.Auth;
 using DevSync.Application.Common;
+using DevSync.Application.Files;
 using DevSync.Application.Identity;
 using DevSync.Application.Workspaces;
 using DevSync.Domain.Common;
+using DevSync.Domain.Files;
 using DevSync.Domain.Identity;
 using DevSync.Domain.Workspaces;
 
@@ -241,4 +243,101 @@ internal sealed class FakeLoginLimiter : ILoginAttemptLimiter
     public void RecordFailure(string normalizedEmail) => Failures.Add(normalizedEmail);
 
     public void Reset(string normalizedEmail) => Resets.Add(normalizedEmail);
+}
+
+/// <summary>In-memory project files: a list of items per workspace and (text, revision) per file.</summary>
+internal sealed class FakeProjectFileRepository : IProjectFileRepository
+{
+    public Dictionary<Guid, List<WorkspaceItem>> Items { get; } = [];
+
+    public Dictionary<Guid, (string Content, long Revision, Guid? UpdatedBy)> Contents { get; } = [];
+
+    public int Commits { get; private set; }
+
+    /// <summary>Simulates the database's sibling-name backstop (a race lost to another request).</summary>
+    public bool FailNextCommitWithNameClash { get; set; }
+
+    public Task<ITreeEdit> BeginTreeEditAsync(Guid workspaceId, CancellationToken cancellationToken)
+    {
+        var items = Items.TryGetValue(workspaceId, out var list) ? list : Items[workspaceId] = [];
+        return Task.FromResult<ITreeEdit>(new Edit(this, workspaceId, new ProjectTree(workspaceId, items)));
+    }
+
+    public Task<IReadOnlyList<ItemDto>> GetTreeAsync(Guid workspaceId, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<ItemDto>>(
+            Items.TryGetValue(workspaceId, out var list) ? list.Select(ItemDto.From).ToList() : []);
+
+    public Task<FileContentDto?> GetContentAsync(Guid workspaceId, Guid itemId, CancellationToken cancellationToken) =>
+        Task.FromResult(
+            Find(workspaceId, itemId) is { Kind: ItemKind.File } && Contents.TryGetValue(itemId, out var c)
+                ? new FileContentDto(c.Content, c.Revision)
+                : null);
+
+    public Task<SaveContentResult> TrySaveContentAsync(
+        Guid workspaceId, Guid itemId, long expectedRevision, string content, int sizeBytes,
+        Guid userId, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        if (Find(workspaceId, itemId) is not { Kind: ItemKind.File } || !Contents.TryGetValue(itemId, out var current))
+        {
+            return Task.FromResult(new SaveContentResult(SaveContentStatus.NotFound));
+        }
+
+        if (current.Revision != expectedRevision)
+        {
+            return Task.FromResult(new SaveContentResult(SaveContentStatus.Conflict, current.Revision));
+        }
+
+        Contents[itemId] = (content, current.Revision + 1, userId);
+        return Task.FromResult(new SaveContentResult(SaveContentStatus.Saved, current.Revision + 1, now));
+    }
+
+    private WorkspaceItem? Find(Guid workspaceId, Guid itemId) =>
+        Items.TryGetValue(workspaceId, out var list) ? list.SingleOrDefault(i => i.Id == itemId) : null;
+
+    private sealed class Edit(FakeProjectFileRepository owner, Guid workspaceId, ProjectTree tree) : ITreeEdit
+    {
+        private readonly List<(WorkspaceItem Item, FileContent? Content)> _added = [];
+        private readonly List<WorkspaceItem> _removed = [];
+
+        public ProjectTree Tree { get; } = tree;
+
+        public void Add(WorkspaceItem item, FileContent? content) => _added.Add((item, content));
+
+        public void Remove(WorkspaceItem item) => _removed.Add(item);
+
+        public Task<bool> CommitAsync(CancellationToken cancellationToken)
+        {
+            if (owner.FailNextCommitWithNameClash)
+            {
+                owner.FailNextCommitWithNameClash = false;
+                return Task.FromResult(false);
+            }
+
+            var list = owner.Items[workspaceId];
+            foreach (var (item, content) in _added)
+            {
+                list.Add(item);
+                if (content is not null)
+                {
+                    owner.Contents[item.Id] = (content.Content, content.Revision, content.UpdatedByUserId);
+                }
+            }
+
+            // Mirrors the database cascade: the tree already dropped the subtree, so keep only what it still holds.
+            if (_removed.Count > 0)
+            {
+                var kept = Tree.Items.Select(i => i.Id).ToHashSet();
+                foreach (var gone in list.Where(i => !kept.Contains(i.Id)).ToList())
+                {
+                    list.Remove(gone);
+                    owner.Contents.Remove(gone.Id);
+                }
+            }
+
+            owner.Commits++;
+            return Task.FromResult(true);
+        }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
 }

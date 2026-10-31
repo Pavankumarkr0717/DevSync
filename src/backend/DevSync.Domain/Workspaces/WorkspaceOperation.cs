@@ -14,4 +14,16 @@ public enum WorkspaceOperation
 
     /// <summary>Invite, revoke invitations, change roles, remove members.</summary>
     ManageMembers,
+
+    /// <summary>Create files and folders, save file content, rename and move (spec 003).</summary>
+    EditFiles,
+
+    /// <summary>Delete files and folders with their contents (spec 003).</summary>
+    DeleteFiles,
+
+    /// <summary>Create and rename diagrams and save their content (spec 004).</summary>
+    EditDiagrams,
+
+    /// <summary>Delete diagrams (spec 004).</summary>
+    DeleteDiagrams,
 }
