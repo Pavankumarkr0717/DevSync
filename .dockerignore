@@ -1,0 +1,8 @@
+# Root build context is used only by src/backend/Dockerfile: send just what it needs.
+*
+!Directory.Build.props
+!Directory.Packages.props
+!src/backend/
+src/backend/**/bin/
+src/backend/**/obj/
+src/backend/Dockerfile

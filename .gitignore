@@ -1,0 +1,29 @@
+# Secrets / local config
+.env
+.env.*
+!.env.example
+
+# .NET
+**/bin/
+**/obj/
+**/TestResults/
+*.user
+*.suo
+.vs/
+
+# Node / frontend
+**/node_modules/
+**/dist/
+**/build/
+**/coverage/
+*.log
+
+# OS / editors
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+.idea/
+
+# Claude Code per-user settings
+.claude/settings.local.json

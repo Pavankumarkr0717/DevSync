@@ -1,0 +1,211 @@
+openapi: 3.1.0
+info:
+  title: DevSync API — Workspace Foundation
+  version: 0.1.0
+  description: >
+    Contract for feature 001-workspace-foundation. All /api endpoints except /api/dev/users
+    require the X-DevSync-User header (development identity, see research.md R6).
+    Every response carries an X-Correlation-ID header. Errors use RFC 9457 Problem Details.
+servers:
+  - url: /
+paths:
+  /health/live:
+    get:
+      summary: Liveness — the process is running
+      security: []
+      responses:
+        '200': { description: Healthy, content: { text/plain: { schema: { type: string, example: Healthy } } } }
+  /health/ready:
+    get:
+      summary: Readiness — the process and database are available
+      security: []
+      responses:
+        '200': { description: Healthy, content: { text/plain: { schema: { type: string, example: Healthy } } } }
+        '503': { description: Database unreachable, content: { text/plain: { schema: { type: string, example: Unhealthy } } } }
+
+  /api/dev/users:
+    get:
+      summary: List development users (available only when Auth mode is DevHeader)
+      security: []
+      responses:
+        '200':
+          description: Seeded development users
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/UserRef' } }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/workspaces:
+    post:
+      summary: Create a workspace owned by the current user
+      parameters: [ { $ref: '#/components/parameters/CorrelationId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateWorkspaceRequest' }
+      responses:
+        '201':
+          description: Created
+          headers:
+            Location: { schema: { type: string, example: /api/workspaces/0193... } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkspaceDetails' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+    get:
+      summary: List workspaces the current user is a member of (newest first)
+      parameters:
+        - { $ref: '#/components/parameters/CorrelationId' }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: pageSize
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200':
+          description: A page of workspaces (empty items array when none)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkspacePage' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /api/workspaces/{workspaceId}:
+    get:
+      summary: Get workspace details (members only)
+      parameters:
+        - { $ref: '#/components/parameters/CorrelationId' }
+        - name: workspaceId
+          in: path
+          required: true
+          description: Malformed values return 404, not 400, to match the non-existent case.
+          schema: { type: string }
+      responses:
+        '200':
+          description: Workspace details
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkspaceDetails' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+security:
+  - devUser: []
+
+components:
+  securitySchemes:
+    devUser:
+      type: apiKey
+      in: header
+      name: X-DevSync-User
+      description: UUID of an existing development user. Development environment only.
+
+  parameters:
+    CorrelationId:
+      name: X-Correlation-ID
+      in: header
+      required: false
+      description: Optional; used if it matches ^[A-Za-z0-9-]{1,64}$, otherwise a new one is generated.
+      schema: { type: string, pattern: '^[A-Za-z0-9-]{1,64}$' }
+
+  schemas:
+    CreateWorkspaceRequest:
+      type: object
+      required: [name]
+      description: Unknown properties are ignored.
+      properties:
+        name:
+          type: string
+          description: Trimmed; 1–100 Unicode code points; no control characters.
+        description:
+          type: [string, 'null']
+          description: Trimmed; empty becomes null; at most 500 code points.
+
+    UserRef:
+      type: object
+      required: [id, displayName]
+      properties:
+        id: { type: string, format: uuid }
+        displayName: { type: string }
+
+    WorkspaceRole:
+      type: string
+      enum: [owner]
+
+    WorkspaceSummary:
+      type: object
+      required: [id, name, role, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        role: { $ref: '#/components/schemas/WorkspaceRole' }
+        createdAt: { type: string, format: date-time }
+
+    WorkspacePage:
+      type: object
+      required: [items, page, pageSize, totalCount]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/WorkspaceSummary' } }
+        page: { type: integer }
+        pageSize: { type: integer }
+        totalCount: { type: integer }
+
+    Member:
+      type: object
+      required: [userId, displayName, role, joinedAt]
+      properties:
+        userId: { type: string, format: uuid }
+        displayName: { type: string }
+        role: { $ref: '#/components/schemas/WorkspaceRole' }
+        joinedAt: { type: string, format: date-time }
+
+    WorkspaceDetails:
+      type: object
+      required: [id, name, description, owner, createdAt, updatedAt, members]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: [string, 'null'] }
+        owner: { $ref: '#/components/schemas/UserRef' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        members: { type: array, items: { $ref: '#/components/schemas/Member' } }
+
+    Problem:
+      type: object
+      description: RFC 9457 Problem Details with DevSync extensions.
+      required: [title, status, code, correlationId]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+        code:
+          type: string
+          enum: [validation_failed, malformed_request, unauthenticated, not_found, service_unavailable, internal_error]
+        correlationId: { type: string }
+        errors:
+          type: object
+          description: Present only for validation_failed. Keys are request field names (camelCase).
+          additionalProperties: { type: array, items: { type: string } }
+
+  responses:
+    BadRequest:
+      description: validation_failed or malformed_request
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+    Unauthenticated:
+      description: Missing, malformed, or unknown X-DevSync-User
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+    NotFound:
+      description: Not found, or exists but the caller is not a member (indistinguishable)
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+    ServiceUnavailable:
+      description: Database unreachable
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }

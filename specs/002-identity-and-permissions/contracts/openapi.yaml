@@ -1,0 +1,382 @@
+openapi: 3.1.0
+info:
+  title: DevSync API — Identity and Workspace Permissions
+  version: 0.2.0
+  description: >
+    Contract for feature 002. Supersedes 001's contract.
+    Changes from 001: removed X-DevSync-User and /api/dev/users; added /api/auth/*, /api/me,
+    workspace edit, members and invitations; role enum gains editor/viewer; Member gains
+    optional email (Owner only); new error codes. All 001 workspace request/response shapes are
+    otherwise unchanged.
+    Every response carries X-Correlation-ID; errors are RFC 9457 Problem Details.
+servers:
+  - url: /
+
+security:
+  - bearer: []
+
+paths:
+  /health/live:
+    get: { summary: Liveness, security: [], responses: { '200': { description: Healthy } } }
+  /health/ready:
+    get:
+      summary: Readiness (database reachable)
+      security: []
+      responses: { '200': { description: Healthy }, '503': { description: Unhealthy } }
+
+  # ---------- Authentication (cookie-scoped; all require X-DevSync-Client) ----------
+  /api/auth/register:
+    post:
+      summary: Create an account and start a session
+      security: []
+      parameters: [ { $ref: '#/components/parameters/ClientHeader' } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/RegisterRequest' } } }
+      responses:
+        '201': { $ref: '#/components/responses/SessionStarted' }
+        '400': { $ref: '#/components/responses/Problem', description: validation_failed | malformed_request }
+        '403': { $ref: '#/components/responses/Problem', description: csrf_check_failed }
+        '409': { $ref: '#/components/responses/Problem', description: email_taken }
+        '429': { $ref: '#/components/responses/Problem', description: too_many_attempts }
+  /api/auth/login:
+    post:
+      summary: Sign in with email and password
+      security: []
+      parameters: [ { $ref: '#/components/parameters/ClientHeader' } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/LoginRequest' } } }
+      responses:
+        '200': { $ref: '#/components/responses/SessionStarted' }
+        '400': { $ref: '#/components/responses/Problem', description: validation_failed }
+        '401': { $ref: '#/components/responses/Problem', description: 'invalid_credentials (identical for unknown email and wrong password)' }
+        '403': { $ref: '#/components/responses/Problem', description: csrf_check_failed }
+        '429': { $ref: '#/components/responses/Problem', description: too_many_attempts }
+  /api/auth/refresh:
+    post:
+      summary: Rotate the refresh cookie and issue a new access token
+      security: [ { refreshCookie: [] } ]
+      parameters: [ { $ref: '#/components/parameters/ClientHeader' } ]
+      responses:
+        '200': { $ref: '#/components/responses/SessionStarted' }
+        '401': { $ref: '#/components/responses/Problem', description: 'session_ended (missing/unknown/expired/revoked/reused token; cookie cleared)' }
+        '403': { $ref: '#/components/responses/Problem', description: csrf_check_failed }
+        '409': { $ref: '#/components/responses/Problem', description: 'refresh_conflict (concurrent rotation; retry once)' }
+  /api/auth/logout:
+    post:
+      summary: End the current session (idempotent)
+      security: [ { refreshCookie: [] }, { bearer: [] }, {} ]
+      parameters: [ { $ref: '#/components/parameters/ClientHeader' } ]
+      responses:
+        '204': { description: Session ended (if any); refresh cookie cleared }
+        '403': { $ref: '#/components/responses/Problem', description: csrf_check_failed }
+  /api/auth/logout-all:
+    post:
+      summary: End every session of the current user
+      parameters: [ { $ref: '#/components/parameters/ClientHeader' } ]
+      responses:
+        '204': { description: All sessions ended; refresh cookie cleared }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Problem', description: csrf_check_failed }
+  /api/me:
+    get:
+      summary: Current user's profile
+      responses:
+        '200': { description: Profile, content: { application/json: { schema: { $ref: '#/components/schemas/UserProfile' } } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+
+  # ---------- Workspaces (001 endpoints, now role-aware) ----------
+  /api/workspaces:
+    post:
+      summary: Create a workspace; caller becomes Owner (unchanged from 001)
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/WorkspaceInput' } } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/WorkspaceDetails' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+    get:
+      summary: Workspaces where the caller holds any role (unchanged from 001)
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200': { description: Page, content: { application/json: { schema: { $ref: '#/components/schemas/WorkspacePage' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+
+  /api/workspaces/{workspaceId}:
+    parameters: [ { $ref: '#/components/parameters/WorkspaceId' } ]
+    get:
+      summary: Details (Read). Member emails included only for the Owner.
+      responses:
+        '200': { description: Details, content: { application/json: { schema: { $ref: '#/components/schemas/WorkspaceDetails' } } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      summary: Edit name/description (EditDetails — Owner, Editor)
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/WorkspaceInput' } } } }
+      responses:
+        '200': { description: Updated, content: { application/json: { schema: { $ref: '#/components/schemas/WorkspaceDetails' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/workspaces/{workspaceId}/members/{userId}:
+    parameters:
+      - { $ref: '#/components/parameters/WorkspaceId' }
+      - { name: userId, in: path, required: true, schema: { type: string } }
+    patch:
+      summary: Change a member's role (ManageMembers — Owner)
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RoleChange' } } } }
+      responses:
+        '200': { description: Updated member, content: { application/json: { schema: { $ref: '#/components/schemas/Member' } } } }
+        '400': { $ref: '#/components/responses/Problem', description: 'validation_failed | cannot_change_owner' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound', description: 'workspace not visible, or member_not_found' }
+    delete:
+      summary: Remove a member (ManageMembers — Owner)
+      responses:
+        '204': { description: Removed }
+        '400': { $ref: '#/components/responses/Problem', description: cannot_remove_owner }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/workspaces/{workspaceId}/invitations:
+    parameters: [ { $ref: '#/components/parameters/WorkspaceId' } ]
+    get:
+      summary: Pending invitations (ManageMembers — Owner)
+      responses:
+        '200': { description: List, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/WorkspaceInvitation' } } } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      summary: Invite an email (ManageMembers — Owner). Same 201 body whether or not an account exists.
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/InvitationRequest' } } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/WorkspaceInvitation' } } } }
+        '400': { $ref: '#/components/responses/Problem', description: 'validation_failed | cannot_invite_self' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Problem', description: 'already_member | invitation_exists | too_many_invitations' }
+  /api/workspaces/{workspaceId}/invitations/{invitationId}:
+    parameters:
+      - { $ref: '#/components/parameters/WorkspaceId' }
+      - { name: invitationId, in: path, required: true, schema: { type: string } }
+    delete:
+      summary: Revoke a pending invitation (ManageMembers — Owner)
+      responses:
+        '204': { description: Revoked }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ---------- Invitee inbox ----------
+  /api/invitations:
+    get:
+      summary: Pending, unexpired invitations addressed to the caller's email
+      responses:
+        '200': { description: List, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ReceivedInvitation' } } } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /api/invitations/{invitationId}/accept:
+    parameters: [ { name: invitationId, in: path, required: true, schema: { type: string } } ]
+    post:
+      summary: Accept; caller becomes a member with the offered role
+      responses:
+        '200': { description: Joined, content: { application/json: { schema: { $ref: '#/components/schemas/WorkspaceSummary' } } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '404': { $ref: '#/components/responses/NotFound', description: 'missing, not addressed to caller, expired, revoked, or answered' }
+        '409': { $ref: '#/components/responses/Problem', description: already_member }
+  /api/invitations/{invitationId}/decline:
+    parameters: [ { name: invitationId, in: path, required: true, schema: { type: string } } ]
+    post:
+      summary: Decline
+      responses:
+        '204': { description: Declined }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer, bearerFormat: JWT, description: 'Access token, 15 min, held in memory by the SPA' }
+    refreshCookie: { type: apiKey, in: cookie, name: devsync_rt, description: 'HttpOnly; SameSite=Strict; Path=/api/auth; Secure (configurable)' }
+
+  parameters:
+    ClientHeader:
+      name: X-DevSync-Client
+      in: header
+      required: true
+      description: Must be "web". Required on every /api/auth/* request (CSRF defence).
+      schema: { type: string, enum: [web] }
+    WorkspaceId:
+      name: workspaceId
+      in: path
+      required: true
+      description: Malformed values return 404.
+      schema: { type: string }
+
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [displayName, email, password]
+      properties:
+        displayName: { type: string, description: 'trimmed, 1–100 code points' }
+        email: { type: string, description: 'trimmed, ≤ 254, case-insensitive' }
+        password: { type: string, description: '12–128 chars, not equal to email; never trimmed' }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties: { email: { type: string }, password: { type: string } }
+    AuthSession:
+      type: object
+      required: [accessToken, accessTokenExpiresAt, user]
+      properties:
+        accessToken: { type: string }
+        accessTokenExpiresAt: { type: string, format: date-time }
+        user: { $ref: '#/components/schemas/UserProfile' }
+    UserProfile:
+      type: object
+      required: [id, displayName, email, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        displayName: { type: string }
+        email: { type: string }
+        createdAt: { type: string, format: date-time }
+    UserRef:
+      type: object
+      required: [id, displayName]
+      properties: { id: { type: string, format: uuid }, displayName: { type: string } }
+    WorkspaceRole: { type: string, enum: [owner, editor, viewer] }
+    AssignableRole: { type: string, enum: [editor, viewer] }
+    WorkspaceInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        description: { type: [string, 'null'] }
+    WorkspaceSummary:
+      type: object
+      required: [id, name, role, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        role: { $ref: '#/components/schemas/WorkspaceRole' }
+        createdAt: { type: string, format: date-time }
+    WorkspacePage:
+      type: object
+      required: [items, page, pageSize, totalCount]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/WorkspaceSummary' } }
+        page: { type: integer }
+        pageSize: { type: integer }
+        totalCount: { type: integer }
+    Member:
+      type: object
+      required: [userId, displayName, role, joinedAt]
+      properties:
+        userId: { type: string, format: uuid }
+        displayName: { type: string }
+        email: { type: string, description: 'Present only when the caller is the Owner' }
+        role: { $ref: '#/components/schemas/WorkspaceRole' }
+        joinedAt: { type: string, format: date-time }
+    WorkspaceDetails:
+      type: object
+      required: [id, name, description, owner, createdAt, updatedAt, members, myRole]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: [string, 'null'] }
+        owner: { $ref: '#/components/schemas/UserRef' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        members: { type: array, items: { $ref: '#/components/schemas/Member' } }
+        myRole: { $ref: '#/components/schemas/WorkspaceRole', description: 'Added in 002 (additive) so the UI can show role-appropriate controls' }
+    RoleChange:
+      type: object
+      required: [role]
+      properties: { role: { $ref: '#/components/schemas/AssignableRole' } }
+    InvitationRequest:
+      type: object
+      required: [email, role]
+      properties:
+        email: { type: string }
+        role: { $ref: '#/components/schemas/AssignableRole' }
+    WorkspaceInvitation:
+      type: object
+      required: [id, email, role, invitedBy, createdAt, expiresAt]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string }
+        role: { $ref: '#/components/schemas/AssignableRole' }
+        invitedBy: { $ref: '#/components/schemas/UserRef' }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+    ReceivedInvitation:
+      type: object
+      required: [id, workspace, role, invitedBy, expiresAt]
+      properties:
+        id: { type: string, format: uuid }
+        workspace: { type: object, required: [id, name], properties: { id: { type: string, format: uuid }, name: { type: string } } }
+        role: { $ref: '#/components/schemas/AssignableRole' }
+        invitedBy: { $ref: '#/components/schemas/UserRef' }
+        expiresAt: { type: string, format: date-time }
+    Problem:
+      type: object
+      required: [title, status, code, correlationId]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        code:
+          type: string
+          enum:
+            # 001 (unchanged)
+            - validation_failed
+            - malformed_request
+            - unauthenticated
+            - not_found
+            - service_unavailable
+            - internal_error
+            # 002
+            - token_expired
+            - session_ended
+            - invalid_credentials
+            - email_taken
+            - too_many_attempts
+            - csrf_check_failed
+            - refresh_conflict
+            - forbidden
+            - cannot_change_owner
+            - cannot_remove_owner
+            - member_not_found
+            - already_member
+            - cannot_invite_self
+            - invitation_exists
+            - too_many_invitations
+        correlationId: { type: string }
+        errors: { type: object, additionalProperties: { type: array, items: { type: string } } }
+
+  responses:
+    SessionStarted:
+      description: Session active. Sets cookie devsync_rt (rotated value).
+      headers:
+        Set-Cookie: { schema: { type: string }, description: 'devsync_rt=…; HttpOnly; SameSite=Strict; Path=/api/auth; Secure; Max-Age=…' }
+      content: { application/json: { schema: { $ref: '#/components/schemas/AuthSession' } } }
+    Problem:
+      description: Problem Details
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+    Unauthenticated:
+      description: 'unauthenticated | token_expired (refresh, then retry) | session_ended (sign in again)'
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+    Forbidden:
+      description: forbidden — caller is a member but their role does not allow the operation
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+    NotFound:
+      description: not_found — missing, malformed id, or caller is not a member (indistinguishable)
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }

@@ -1,0 +1,44 @@
+name: devsync
+
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - devsync-db-data:/var/lib/postgresql
+    ports:
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: src/backend/Dockerfile
+    environment:
+      ConnectionStrings__DevSync: "Host=db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
+      DevSync__Auth__SigningKey: ${DevSync__Auth__SigningKey:-}
+      DevSync__Auth__RefreshCookie__Secure: ${DevSync__Auth__RefreshCookie__Secure:-true}
+      DevSync__Database__ApplyMigrationsOnStartup: ${DevSync__Database__ApplyMigrationsOnStartup}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${API_PORT:-5080}:8080"
+
+  web:
+    build: ./src/frontend
+    depends_on:
+      - api
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8080}:80"
+
+volumes:
+  devsync-db-data:
