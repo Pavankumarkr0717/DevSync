@@ -4,10 +4,13 @@ using Microsoft.Extensions.Logging;
 
 namespace DevSync.Application.Auth;
 
-/// <summary>Ends the current session (FR-017). Idempotent: unknown or already-ended sessions are ignored.</summary>
+/// <summary>
+/// Ends the current session (FR-017). Idempotent: unknown or already-ended sessions are ignored.
+/// Returns the id of the session it ended, or null, so live connections of that session can be closed (spec 005 FR-004).
+/// </summary>
 public sealed class LogoutHandler(ISessionRepository sessions, TimeProvider time, ILogger<LogoutHandler> logger)
 {
-    public async Task HandleAsync(string? refreshToken, Guid? sessionId, CancellationToken cancellationToken)
+    public async Task<Guid?> HandleAsync(string? refreshToken, Guid? sessionId, CancellationToken cancellationToken)
     {
         Session? session = null;
         if (!string.IsNullOrEmpty(refreshToken))
@@ -22,12 +25,13 @@ public sealed class LogoutHandler(ISessionRepository sessions, TimeProvider time
 
         if (session is null || session.RevokedAt is not null)
         {
-            return;
+            return null;
         }
 
         session.Revoke(time.GetUtcNow(), SessionRevocationReason.Logout);
         await sessions.SaveChangesAsync(cancellationToken);
         logger.LogInformation("Security event {Event} for user {UserId}", "auth.logout", session.UserId);
+        return session.Id;
     }
 }
 

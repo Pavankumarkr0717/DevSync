@@ -1,5 +1,6 @@
 using DevSync.Api.Auth;
 using DevSync.Api.Errors;
+using DevSync.Api.Realtime;
 using DevSync.Application.Common;
 using DevSync.Application.Workspaces;
 using DevSync.Domain.Workspaces;
@@ -81,15 +82,23 @@ public static class WorkspaceEndpoints
     }
 
     private static async Task<IResult> RemoveMemberAsync(
-        HttpContext context, string userId, RemoveMemberHandler handler, CancellationToken ct)
+        HttpContext context, string userId, RemoveMemberHandler handler, PresenceBroadcaster presence, CancellationToken ct)
     {
         if (!Guid.TryParse(userId, out var memberId))
         {
             return Problems.Error(ErrorCodes.MemberNotFound);
         }
 
-        var outcome = await handler.HandleAsync(WorkspaceAuthorization.Access(context).WorkspaceId, memberId, ct);
-        return outcome.IsSuccess ? TypedResults.NoContent() : Problems.From(outcome);
+        var workspaceId = WorkspaceAuthorization.Access(context).WorkspaceId;
+        var outcome = await handler.HandleAsync(workspaceId, memberId, ct);
+        if (!outcome.IsSuccess)
+        {
+            return Problems.From(outcome);
+        }
+
+        // Live presence follows the membership change at once (spec 005 FR-020).
+        await presence.RevokeMembershipAsync(workspaceId, memberId);
+        return TypedResults.NoContent();
     }
 
     private static async Task<IResult> ListInvitationsAsync(

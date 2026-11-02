@@ -5,6 +5,7 @@ using DevSync.Api.Auth;
 using DevSync.Api.Endpoints;
 using DevSync.Api.Errors;
 using DevSync.Api.Middleware;
+using DevSync.Api.Realtime;
 using DevSync.Application;
 using DevSync.Application.Common;
 using DevSync.Infrastructure;
@@ -34,6 +35,7 @@ builder.Services.AddApplication();
 builder.Services.AddInfrastructure();
 builder.Services.AddDevSyncAuth();
 builder.Services.AddSingleton<RefreshCookie>();
+builder.Services.AddDevSyncRealtime();
 builder.Services.AddHealthChecks().AddDbContextCheck<DevSyncDbContext>(tags: ["ready"]);
 
 // Per-client limit on register/login (spec 002 FR-008). In-process state: single API instance.
@@ -79,6 +81,7 @@ app.MapWorkspaceEndpoints();
 app.MapInvitationEndpoints();
 app.MapFileEndpoints();
 app.MapDiagramEndpoints();
+app.MapDevSyncHubs();
 
 await app.RunAsync();
 

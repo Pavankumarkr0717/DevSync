@@ -1,4 +1,5 @@
 using DevSync.Api.Errors;
+using DevSync.Api.Realtime;
 using DevSync.Application.Auth;
 using DevSync.Application.Common;
 using DevSync.Infrastructure.Persistence;
@@ -55,6 +56,18 @@ public static class AuthSetup
                 };
                 options.Events = new JwtBearerEvents
                 {
+                    // Browsers cannot set headers on WebSocket/EventSource requests, so the hub (and only
+                    // the hub) also accepts the access token from the query string (spec 005 research R2).
+                    OnMessageReceived = context =>
+                    {
+                        if (context.Request.Path.StartsWithSegments(RealtimeSetup.HubsPathPrefix)
+                            && context.Request.Query["access_token"].ToString() is { Length: > 0 } token)
+                        {
+                            context.Token = token;
+                        }
+
+                        return Task.CompletedTask;
+                    },
                     OnTokenValidated = ValidateSessionAsync,
                     OnAuthenticationFailed = context =>
                     {

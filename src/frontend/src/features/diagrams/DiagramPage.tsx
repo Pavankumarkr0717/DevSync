@@ -8,6 +8,7 @@ import { AlertIcon, ArrowLeftIcon, ChevronRightIcon, CloudCheckIcon, CloudOffIco
 import { Loading } from '../../shared/ui/Loading';
 import { ThemeToggle } from '../../shared/ui/ThemeToggle';
 import { toastShown } from '../../shared/ui/uiSlice';
+import { PresenceBar } from '../presence/PresenceBar';
 import { WorkspaceNotFound } from '../workspaces/WorkspaceNotFound';
 import { useGetWorkspaceQuery } from '../workspaces/workspacesApi';
 import { selectDiagramEditor } from './diagramEditorSlice';
@@ -157,6 +158,7 @@ function CanvasHeader({ workspaceId, diagram, canEdit, listUrl }: { workspaceId:
           {status}
         </span>
       )}
+      <PresenceBar />
       <ThemeToggle />
     </header>
   );

@@ -1,5 +1,6 @@
 import { Link, NavLink } from 'react-router';
 import { ChevronRightIcon } from '../../shared/ui/icons';
+import { PresenceBar } from '../presence/PresenceBar';
 
 type Section = 'overview' | 'files' | 'diagrams';
 
@@ -9,7 +10,7 @@ const SECTIONS: Array<{ id: Section; label: string; path: string }> = [
   { id: 'diagrams', label: 'Diagrams', path: '/diagrams' },
 ];
 
-/** Breadcrumbs and the Overview · Files · Diagrams tabs shared by workspace pages (spec 004 FR-039). */
+/** Breadcrumbs, the Overview · Files · Diagrams tabs and who is online, shared by workspace pages (spec 004 FR-039, spec 005 FR-028). */
 export function WorkspaceNav({ workspaceId, name, current }: { workspaceId: string; name: string; current: Section }) {
   const base = `/workspaces/${workspaceId}`;
   const section = SECTIONS.find((s) => s.id === current)!;
@@ -29,13 +30,16 @@ export function WorkspaceNav({ workspaceId, name, current }: { workspaceId: stri
           </>
         )}
       </nav>
-      <nav aria-label="Workspace sections" className="tabs-nav">
-        {SECTIONS.map((s) => (
-          <NavLink key={s.id} to={`${base}${s.path}`} end className={s.id === current ? 'active' : undefined}>
-            {s.label}
-          </NavLink>
-        ))}
-      </nav>
+      <div className="tabs-row">
+        <nav aria-label="Workspace sections" className="tabs-nav">
+          {SECTIONS.map((s) => (
+            <NavLink key={s.id} to={`${base}${s.path}`} end className={s.id === current ? 'active' : undefined}>
+              {s.label}
+            </NavLink>
+          ))}
+        </nav>
+        <PresenceBar />
+      </div>
     </>
   );
 }

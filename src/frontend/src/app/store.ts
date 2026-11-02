@@ -3,6 +3,7 @@ import { authReducer, sessionEnded, signedIn, signedOut } from '../features/auth
 import { clearUserDrafts } from '../shared/editing/drafts';
 import { diagramEditorReducer } from '../features/diagrams/diagramEditorSlice';
 import { editorReducer } from '../features/files/editorSlice';
+import { presenceReducer } from '../features/presence/presenceSlice';
 import { clearUserTabs } from '../features/files/tabStorage';
 import { baseApi } from '../shared/api/baseApi';
 import { permissionDenied, uiReducer } from '../shared/ui/uiSlice';
@@ -11,6 +12,7 @@ const rootReducer = combineReducers({
   auth: authReducer,
   editor: editorReducer,
   diagramEditor: diagramEditorReducer,
+  presence: presenceReducer,
   ui: uiReducer,
   [baseApi.reducerPath]: baseApi.reducer,
 });

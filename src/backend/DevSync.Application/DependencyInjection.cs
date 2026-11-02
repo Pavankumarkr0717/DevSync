@@ -1,6 +1,7 @@
 using DevSync.Application.Auth;
 using DevSync.Application.Diagrams;
 using DevSync.Application.Files;
+using DevSync.Application.Presence;
 using DevSync.Application.Workspaces;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -46,6 +47,10 @@ public static class DependencyInjection
         services.AddScoped<RenameDiagramHandler>();
         services.AddScoped<SaveDiagramDocumentHandler>();
         services.AddScoped<DeleteDiagramHandler>();
+
+        // Presence state lives for the life of the process (spec 005 FR-019).
+        services.AddSingleton<IPresenceTracker, PresenceTracker>();
+        services.AddScoped<WorkspacePresenceService>();
         return services;
     }
 }

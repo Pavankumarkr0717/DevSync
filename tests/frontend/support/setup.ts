@@ -1,7 +1,8 @@
 import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
-import { afterAll, afterEach, beforeAll, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, vi } from 'vitest';
 import { resetEditorModels } from './editorModels';
+import { resetFakeHub } from './fakeHub';
 import './reactFlowEnv';
 import { server } from './server';
 
@@ -9,6 +10,10 @@ import { server } from './server';
 vi.mock('@/features/files/CodeEditor', () => import('./codeEditorStub'));
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
+// Workspace pages open a real-time connection (spec 005); tests get an in-memory hub instead.
+beforeEach(() => {
+  resetFakeHub();
+});
 afterEach(() => {
   cleanup();
   server.resetHandlers();

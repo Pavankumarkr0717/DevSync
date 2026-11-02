@@ -1,5 +1,6 @@
 using DevSync.Api.Auth;
 using DevSync.Api.Errors;
+using DevSync.Api.Realtime;
 using DevSync.Application.Auth;
 using DevSync.Application.Common;
 
@@ -79,18 +80,24 @@ public static class AuthEndpoints
     }
 
     private static async Task<IResult> LogoutAsync(
-        HttpContext context, LogoutHandler handler, RefreshCookie cookie, CancellationToken ct)
+        HttpContext context, LogoutHandler handler, RefreshCookie cookie, PresenceBroadcaster presence, CancellationToken ct)
     {
         Guid? sessionId = Guid.TryParse(context.User.FindFirst(AccessTokenIssuer.SessionIdClaim)?.Value, out var sid) ? sid : null;
-        await handler.HandleAsync(RefreshCookie.Read(context.Request), sessionId, ct);
+        if (await handler.HandleAsync(RefreshCookie.Read(context.Request), sessionId, ct) is { } ended)
+        {
+            presence.EndSession(ended);
+        }
+
         cookie.Clear(context.Response);
         return TypedResults.NoContent();
     }
 
     private static async Task<IResult> LogoutAllAsync(
-        HttpResponse response, LogoutAllHandler handler, RefreshCookie cookie, CancellationToken ct)
+        HttpResponse response, LogoutAllHandler handler, RefreshCookie cookie, ICurrentUser user,
+        PresenceBroadcaster presence, CancellationToken ct)
     {
         await handler.HandleAsync(ct);
+        presence.EndAllSessions(user.UserId);
         cookie.Clear(response);
         return TypedResults.NoContent();
     }

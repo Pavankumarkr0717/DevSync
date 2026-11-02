@@ -8,6 +8,7 @@ import { DiagramPage } from '../features/diagrams/DiagramPage';
 import { FilesPage } from '../features/files/FilesPage';
 import { InvitationsPage } from '../features/invitations/InvitationsPage';
 import { LandingPage } from '../features/landing/LandingPage';
+import { WorkspaceScope } from '../features/presence/WorkspaceScope';
 import { CreateWorkspacePage } from '../features/workspaces/CreateWorkspacePage';
 import { WorkspaceDetailsPage } from '../features/workspaces/WorkspaceDetailsPage';
 import { WorkspaceListPage } from '../features/workspaces/WorkspaceListPage';
@@ -24,10 +25,13 @@ export function AppRoutes() {
         <Route element={<RequireAuth />}>
           <Route path="workspaces" element={<WorkspaceListPage />} />
           <Route path="workspaces/new" element={<CreateWorkspacePage />} />
-          <Route path="workspaces/:workspaceId" element={<WorkspaceDetailsPage />} />
-          <Route path="workspaces/:workspaceId/files" element={<FilesPage />} />
-          <Route path="workspaces/:workspaceId/diagrams" element={<DiagramListPage />} />
-          <Route path="workspaces/:workspaceId/diagrams/:diagramId" element={<DiagramPage />} />
+          {/* One workspace's pages share its live presence (spec 005). */}
+          <Route path="workspaces/:workspaceId" element={<WorkspaceScope />}>
+            <Route index element={<WorkspaceDetailsPage />} />
+            <Route path="files" element={<FilesPage />} />
+            <Route path="diagrams" element={<DiagramListPage />} />
+            <Route path="diagrams/:diagramId" element={<DiagramPage />} />
+          </Route>
           <Route path="invitations" element={<InvitationsPage />} />
           <Route path="profile" element={<ProfilePage />} />
         </Route>

@@ -18,7 +18,8 @@ export default defineConfig({
     port: 5173,
     fs: { allow: ['.', testsDir] },
     proxy: {
-      '/api': apiTarget,
+      // ws: the real-time hub at /api/hubs/workspace (spec 005).
+      '/api': { target: apiTarget, ws: true },
       '/health': apiTarget,
     },
   },

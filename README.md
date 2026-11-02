@@ -12,6 +12,7 @@ editing, architecture diagrams and isolated code execution inside a workspace.
 | [002 Identity and Workspace Permissions](specs/002-identity-and-permissions/) | Accounts (register, sign in, sign out, sign out everywhere). Short-lived access tokens with rotating, revocable refresh sessions. Workspace roles: **Owner**, **Editor**, **Viewer**. Invitations by email. Owner-managed roles and removal. Editing a workspace's name and description. |
 | [003 Project Files and Code Editor](specs/003-file-explorer-editor/) | A folder and file tree per workspace. Create, rename, move and delete. A Monaco code editor with syntax highlighting and up to 20 tabs. Debounced autosave with Saving / Saved / Save failed status. Conflicts instead of silent overwrites. Unsaved-edit drafts that survive a reload. |
 | [004 System Design Canvas](specs/004-system-design-canvas/) | Architecture diagrams per workspace: 8 component types on a grid canvas, labelled directed connections, a properties panel with metadata, zoom, fit and a minimap. Autosave with the same statuses, conflicts and drafts as files. A dark-first, Google-style UI on Fluent 2 design tokens with Inter and JetBrains Mono, a light/dark toggle, a public landing page, role badges and file-type icons ([design system](docs/design/design-system.md)). |
+| [005 Real-Time Workspace Presence](specs/005-workspace-presence/) | Live presence over SignalR: see who is online in a workspace on every workspace page (overview, files, editor, canvas), with joined/left notifications, a connection status with automatic reconnection, and server-side authorization of every join. Several tabs or devices count as one person. A short grace period keeps reloads quiet. Removing a member or signing out ends their live access at once. |
 
 **Roles**
 
@@ -32,7 +33,7 @@ People who aren't members get "not found", exactly as if the workspace didn't ex
 is the only Owner, for good: ownership transfer is out of scope for now.
 
 **Not included yet**, each needing its own approved spec: real-time collaborative editing and
-live cursors, file history or trash, Git integration, code execution, terminals, language
+live cursors (005 adds presence only), file history or trash, Git integration, code execution, terminals, language
 servers (IntelliSense, diagnostics), real-time diagram collaboration, diagram auto layout,
 export or code generation, AI features, workspace deletion, email delivery, social login, SSO,
 MFA, and cloud deployment. Several of these are planned in the [roadmap](#roadmap).
@@ -40,12 +41,12 @@ MFA, and cloud deployment. Several of these are planned in the [roadmap](#roadma
 ## Roadmap
 
 Each milestone gets its own approved spec (Spec Kit) before implementation. New infrastructure
-(SignalR, RabbitMQ, Redis, an execution sandbox) is introduced only by the milestone that needs
-it, as the constitution requires.
+(RabbitMQ, Redis, an execution sandbox) is introduced only by the milestone that needs it, as the
+constitution requires. SignalR arrived with S05.
 
 | Milestone | Scope | Learning focus | Done when |
 |-----------|-------|----------------|-----------|
-| **S05 Real-time workspace presence** | ASP.NET Core SignalR, workspace groups, join/leave events and online participant indicators. | WebSockets, connection lifecycles, group membership, authorization, disconnects. | Two authorized browser sessions see presence changes without polling. |
+| **S05 Real-time workspace presence** ✅ | ASP.NET Core SignalR, workspace groups, join/leave events and online participant indicators. | WebSockets, connection lifecycles, group membership, authorization, disconnects. | Two authorized browser sessions see presence changes without polling. **Done**: see [Real-time presence](#real-time-presence). |
 | **S06 Concurrent editing and conflict resolution** | Synchronize text edits, selections and cursors. Choose Yjs or another established collaboration approach, and define reconnect and recovery semantics. | Concurrency, operation ordering, CRDT/OT trade-offs, idempotency, stale updates. | Simultaneous edits converge correctly under the defined test scenarios. |
 | **S07 Live collaborative diagrams** | Synchronize node and edge operations, detect stale revisions, and recover the diagram after reconnects. | Event modeling, optimistic updates, revision control, state reconciliation. | Concurrent edits from multiple users result in a valid shared diagram. |
 | **S08 Snapshots and version history** | Save recoverable versions of files and diagrams, browse revisions, and restore a selected version. | Transactions, snapshot design, retention, optimistic concurrency, audit trails. | A previous revision can be restored without corrupting current state. |
@@ -204,6 +205,38 @@ visual language (colours, cards, the sidebar and dark mode) is described in
 [docs/design/design-system.md](docs/design/design-system.md). No new environment variables are
 needed.
 
+## Real-time presence
+
+Every workspace page (overview, Files and the code editor, Diagrams and the canvas) shows who is
+online in the header: avatars with a green dot, "+N" beyond four, and "N online". Click the
+avatars for the full list of names.
+
+- **Notifications**: "Alex joined the workspace." and "Alex left the workspace.", once each and
+  never about yourself.
+- **Several tabs or devices** count as one person. Leaving is announced only when your last tab
+  closes, after a **5-second grace period**, so a reload is silent.
+- **Connection status**:
+  - "Reconnecting to DevSync…" while the connection is retried (after 0, 2, 5, 10 and 30 s);
+  - "Connection restored." once it is back;
+  - "Live presence unavailable" with **Retry** if every attempt fails. Files and diagrams keep
+    working without presence.
+- **Security**:
+  - Only signed-in members can connect and join, and every join is checked on the server.
+    Non-members get the same "not found" as for a missing workspace.
+  - A removed member is evicted at once and told "You no longer have access to this workspace."
+  - Signing out closes that session's live connections, and signing out everywhere closes them
+    all. A connection also closes when its 15-minute access token expires, then reconnects with
+    a fresh one.
+- **Try it**: open the same workspace as two members, in a normal and a private window, then
+  close, reload, or toggle DevTools → Network → Offline in one of them.
+
+Presence is held in the memory of the single API process. It is never written to the database,
+and a restart rebuilds it as clients reconnect. The hub, event contracts, authorization flow,
+lifecycle, limits and the path to distributed presence are in
+[docs/architecture/realtime-presence.md](docs/architecture/realtime-presence.md) and
+[ADR 0005](docs/adr/0005-realtime-presence.md). The optional `DevSync__Presence__GracePeriodSeconds`
+(default `5`) changes the grace period.
+
 ## Configuration
 
 All settings come from environment variables. `.env.example` lists them with placeholders, and
@@ -218,6 +251,7 @@ your real `.env` is git-ignored.
 | `DevSync__Auth__RefreshCookie__Secure` | `true` | Send the refresh cookie only over HTTPS. Chrome, Edge and Firefox accept it on `http://localhost`; set `false` only for Safari or plain-HTTP hosts other than localhost. |
 | `DevSync__Auth__AccessTokenMinutes`, `SessionIdleDays`, `SessionAbsoluteDays` | `15`, `7`, `30` | Optional overrides |
 | `DevSync__Database__ApplyMigrationsOnStartup` | `true` | Apply EF Core migrations at startup |
+| `DevSync__Presence__GracePeriodSeconds` | `5` | Optional: seconds a member stays listed after their last connection ends (spec 005) |
 | `DB_PORT`, `API_PORT`, `WEB_PORT` | `5432`, `5080`, `8080` | Host ports, bound to `127.0.0.1` only |
 
 ## Tests
@@ -239,6 +273,8 @@ the Compose database. They include:
 - refresh-token reuse detection,
 - scans showing that passwords, tokens, file names, file content and diagram text never reach the logs,
 - a test for every diagram document rule,
+- real SignalR hub connections for presence: unauthenticated and non-member refusal, group
+  isolation, multi-tab handling, the grace period, member removal, logout, and token expiry,
 - concurrency races: ten simultaneous saves of one file or diagram, crossed folder moves, a save racing a delete.
 
 `npm run check:bundle --prefix src/frontend` (after a build) checks that the code editor and
@@ -277,6 +313,7 @@ All `/api/auth/*` calls must send `X-DevSync-Client: web`.
 | POST | `/api/workspaces/{id}/diagrams` · `…/diagrams/{diagramId}/rename` | Owner, Editor |
 | PUT | `/api/workspaces/{id}/diagrams/{diagramId}/document` (JSON, `If-Match: "<revision>"`) | Owner, Editor |
 | DELETE | `/api/workspaces/{id}/diagrams/{diagramId}` | Owner |
+| SignalR | `/api/hubs/workspace`: `JoinWorkspace`, `LeaveWorkspace` ([contract](specs/005-workspace-presence/contracts/workspace-hub.md)) | Members (any role) |
 
 Errors use RFC 9457 Problem Details with `code` and `correlationId`. 401 responses carry one of
 three codes:
